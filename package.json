@@ -1,0 +1,39 @@
+{
+  "name": "speed-read",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A calm speed-reading instrument that keeps the page still.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.functions.json && vite build",
+    "preview": "vite preview",
+    "pages:dev": "npm run build && wrangler pages dev dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "check": "npm run test && npm run build",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "dependencies": {
+    "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+    "@mozilla/readability": "^0.6.0",
+    "linkedom": "^0.18.13",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260826.1",
+    "@playwright/test": "^1.55.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^6.1.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.36.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

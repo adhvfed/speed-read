@@ -1,0 +1,32 @@
+parameters:
+  APP_PORT:
+    type: port
+    default: 4174
+  OPENAI_API_KEY:
+    type: secret
+    source: manual
+    optional: true
+    description: "Development-only OpenAI API key for post-reading quizzes"
+
+services:
+  web:
+    process: node scripts/start-pages-dev.mjs
+    install: npm install
+    environment:
+      APP_PORT: "{{APP_PORT}}"
+      OPENAI_API_KEY: "{{OPENAI_API_KEY}}"
+    healthcheck:
+      http_get: "http://127.0.0.1:{{APP_PORT}}/"
+      timeout: 30s
+    startup_message: "speed-read: http://127.0.0.1:{{APP_PORT}}"
+
+scripts:
+  check:
+    script: npm run check
+  test:quiz:
+    depends_on: [web]
+    environment:
+      APP_URL: "http://127.0.0.1:{{APP_PORT}}"
+    script: node scripts/smoke-quiz.mjs
+
+entrypoint: web

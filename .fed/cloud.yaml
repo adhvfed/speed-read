@@ -1,0 +1,5 @@
+# Binds this checkout to a Service Federation Cloud project.
+# Commit this file — teammates inherit the link.
+org: speed-read
+project: speed-read
+secret_cache: memory

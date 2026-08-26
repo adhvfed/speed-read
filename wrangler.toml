@@ -1,0 +1,21 @@
+name = "speed-read"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-08-26"
+compatibility_flags = ["nodejs_compat"]
+keep_vars = true
+
+[[ratelimits]]
+name = "QUIZ_CLIENT_RATE_LIMITER"
+namespace_id = "927401"
+
+  [ratelimits.simple]
+  limit = 4
+  period = 60
+
+[[ratelimits]]
+name = "QUIZ_NETWORK_RATE_LIMITER"
+namespace_id = "927402"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
