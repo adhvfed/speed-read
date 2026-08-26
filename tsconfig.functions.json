@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["@cloudflare/workers-types"]
   },
-  "include": ["functions", "src/lib/quiz.ts", "src/lib/text.ts", "src/types.ts"]
+  "include": ["functions", "workers", "src/lib/quiz.ts", "src/lib/text.ts", "src/types.ts"]
 }

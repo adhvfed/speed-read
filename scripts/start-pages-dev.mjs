@@ -37,9 +37,10 @@ child = spawn(process.execPath, [
   'dist',
   '--port',
   port,
+  '--show-interactive-dev-session=false',
 ], {
   env: runtimeEnvironment,
-  stdio: 'inherit',
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 const runtimeExit = await waitFor(child);
 process.exit(runtimeExit.code ?? (runtimeExit.signal ? 128 : 1));

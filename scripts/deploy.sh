@@ -15,6 +15,8 @@ if [[ ! -d "$DIST_DIR" ]]; then
   exit 1
 fi
 
+npx wrangler deploy --config wrangler.rate-limit.toml
+
 npx wrangler pages deploy "$DIST_DIR" \
   --project-name "$PROJECT" \
   --branch "$BRANCH" \

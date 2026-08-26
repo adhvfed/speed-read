@@ -3,46 +3,21 @@ import { requestReadingQuiz, safetyIdentifier, validateQuizInput } from '../_lib
 
 interface QuizEnv {
   OPENAI_API_KEY?: string;
-  QUIZ_CLIENT_RATE_LIMITER?: RateLimit;
-  QUIZ_NETWORK_RATE_LIMITER?: RateLimit;
+  QUIZ_RATE_LIMITER?: Fetcher;
 }
 
-interface LocalLimit {
-  count: number;
-  resetAt: number;
-}
-
-const localLimits = new Map<string, LocalLimit>();
 const CLIENT_ID_PATTERN = /^[a-z0-9-]{16,100}$/i;
 // JSON escaping can use up to six transport bytes per decoded UTF-16 code unit.
 // This still decodes to the 16,000-character source limit enforced below.
 const MAX_QUIZ_REQUEST_BYTES = 110_000;
 
-function useLocalLimit(key: string, limit: number): boolean {
-  const now = Date.now();
-  const current = localLimits.get(key);
-  if (!current || current.resetAt <= now) {
-    if (localLimits.size > 500) {
-      for (const [candidate, value] of localLimits) {
-        if (value.resetAt <= now) localLimits.delete(candidate);
-      }
-    }
-    localLimits.set(key, { count: 1, resetAt: now + 60_000 });
-    return true;
-  }
-  current.count += 1;
-  return current.count <= limit;
-}
-
-async function withinLimits(env: QuizEnv, clientId: string, network: string): Promise<boolean> {
-  if (env.QUIZ_CLIENT_RATE_LIMITER && env.QUIZ_NETWORK_RATE_LIMITER) {
-    const [client, sharedNetwork] = await Promise.all([
-      env.QUIZ_CLIENT_RATE_LIMITER.limit({ key: clientId }),
-      env.QUIZ_NETWORK_RATE_LIMITER.limit({ key: network }),
-    ]);
-    return client.success && sharedNetwork.success;
-  }
-  return useLocalLimit(`client:${clientId}`, 4) && useLocalLimit(`network:${network}`, 20);
+async function withinLimits(limiter: Fetcher, clientId: string, network: string): Promise<boolean> {
+  const response = await limiter.fetch('https://quiz-rate-limit.internal/limit', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ clientId, network }),
+  });
+  return response.status === 204;
 }
 
 function isSameSiteRequest(request: Request): boolean {
@@ -53,19 +28,20 @@ function isSameSiteRequest(request: Request): boolean {
 }
 
 export const onRequestGet: PagesFunction<QuizEnv> = async ({ env }) => {
-  return json({ available: Boolean(env.OPENAI_API_KEY?.trim()) });
+  return json({ available: Boolean(env.OPENAI_API_KEY?.trim() && env.QUIZ_RATE_LIMITER) });
 };
 
 export const onRequestPost: PagesFunction<QuizEnv> = async ({ request, env }) => {
   const apiKey = env.OPENAI_API_KEY?.trim();
   if (!apiKey) return fail(404, 'Quiz generation is not available.');
+  if (!env.QUIZ_RATE_LIMITER) return fail(503, 'Quiz generation is temporarily unavailable.');
   if (!isSameSiteRequest(request)) return fail(403, 'Quiz requests must come from speed-read.');
 
   const clientId = request.headers.get('x-speed-read-client')?.trim() ?? '';
   if (!CLIENT_ID_PATTERN.test(clientId)) return fail(400, 'This browser could not be identified. Refresh and try again.');
 
   const network = request.headers.get('cf-connecting-ip') || 'local';
-  if (!await withinLimits(env, clientId, network)) {
+  if (!await withinLimits(env.QUIZ_RATE_LIMITER, clientId, network)) {
     return json({ error: 'Quiz limit reached. Wait a minute and try again.' }, {
       status: 429,
       headers: { 'retry-after': '60' },

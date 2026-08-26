@@ -2,6 +2,9 @@ parameters:
   APP_PORT:
     type: port
     default: 4174
+  LIMITER_PORT:
+    type: port
+    default: 4175
   OPENAI_API_KEY:
     type: secret
     source: manual
@@ -9,9 +12,19 @@ parameters:
     description: "Development-only OpenAI API key for post-reading quizzes"
 
 services:
+  limiter:
+    process: node scripts/start-rate-limit-dev.mjs
+    install: npm install
+    environment:
+      LIMITER_PORT: "{{LIMITER_PORT}}"
+    healthcheck:
+      http_get: "http://127.0.0.1:{{LIMITER_PORT}}/health"
+      timeout: 30s
+    startup_message: "quiz limiter: http://127.0.0.1:{{LIMITER_PORT}}"
   web:
     process: node scripts/start-pages-dev.mjs
     install: npm install
+    depends_on: [limiter]
     environment:
       APP_PORT: "{{APP_PORT}}"
       OPENAI_API_KEY: "{{OPENAI_API_KEY}}"

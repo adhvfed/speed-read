@@ -12,8 +12,20 @@ describe('/api/quiz', () => {
     expect(await (response as Response).json()).toEqual({ available: false });
   });
 
+  it('fails closed when a key exists without the production limiter binding', async () => {
+    const get = await onRequestGet(context(new Request('https://speed-read.test/api/quiz'), {
+      OPENAI_API_KEY: 'opaque-test-key',
+    }));
+    expect(await (get as Response).json()).toEqual({ available: false });
+
+    const post = await onRequestPost(context(new Request('https://speed-read.test/api/quiz', {
+      method: 'POST',
+    }), { OPENAI_API_KEY: 'opaque-test-key' }));
+    expect((post as Response).status).toBe(503);
+  });
+
   it('rejects a cross-origin source before using a rate-limit token', async () => {
-    const limit = vi.fn(async () => ({ success: true }));
+    const fetch = vi.fn(async () => new Response(null, { status: 204 }));
     const response = await onRequestPost(context(new Request('https://speed-read.test/api/quiz', {
       method: 'POST',
       headers: {
@@ -24,16 +36,14 @@ describe('/api/quiz', () => {
       body: JSON.stringify({ title: 'Reading', text: 'word '.repeat(30) }),
     }), {
       OPENAI_API_KEY: 'opaque-test-key',
-      QUIZ_CLIENT_RATE_LIMITER: { limit },
-      QUIZ_NETWORK_RATE_LIMITER: { limit },
+      QUIZ_RATE_LIMITER: { fetch },
     }));
     expect((response as Response).status).toBe(403);
-    expect(limit).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('enforces the platform limiter before calling the model', async () => {
-    const allowed = vi.fn(async () => ({ success: true }));
-    const blocked = vi.fn(async () => ({ success: false }));
+  it('enforces the bound limiter service before calling the model', async () => {
+    const fetch = vi.fn(async () => new Response(null, { status: 429 }));
     const response = await onRequestPost(context(new Request('https://speed-read.test/api/quiz', {
       method: 'POST',
       headers: {
@@ -46,21 +56,18 @@ describe('/api/quiz', () => {
       body: JSON.stringify({ title: 'Reading', text: 'word '.repeat(30) }),
     }), {
       OPENAI_API_KEY: 'opaque-test-key',
-      QUIZ_CLIENT_RATE_LIMITER: { limit: allowed },
-      QUIZ_NETWORK_RATE_LIMITER: { limit: blocked },
+      QUIZ_RATE_LIMITER: { fetch },
     }));
     expect((response as Response).status).toBe(429);
     expect((response as Response).headers.get('retry-after')).toBe('60');
-    expect(allowed).toHaveBeenCalledOnce();
-    expect(blocked).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledOnce();
   });
 
   it('spends a limit token before rejecting malformed and oversized bodies', async () => {
-    const limit = vi.fn(async () => ({ success: true }));
+    const fetch = vi.fn(async () => new Response(null, { status: 204 }));
     const env = {
       OPENAI_API_KEY: 'opaque-test-key',
-      QUIZ_CLIENT_RATE_LIMITER: { limit },
-      QUIZ_NETWORK_RATE_LIMITER: { limit },
+      QUIZ_RATE_LIMITER: { fetch },
     };
     const headers = {
       origin: 'https://speed-read.test',
@@ -80,6 +87,6 @@ describe('/api/quiz', () => {
     expect(oversizedRequest.headers.has('content-length')).toBe(false);
     const oversized = await onRequestPost(context(oversizedRequest, env));
     expect((oversized as Response).status).toBe(413);
-    expect(limit).toHaveBeenCalledTimes(4);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });
