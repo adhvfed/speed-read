@@ -229,7 +229,6 @@ function Intake({ onStart }: { onStart: (article: ArticleContent, sourceType: So
             <i /><i /><i />
           </div>
         )}
-        <p className="privacy-note">Links are fetched only to extract readable text. Prepared text and progress are stored locally in this browser and pruned automatically.</p>
       </section>
     </main>
   );

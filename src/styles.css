@@ -416,14 +416,6 @@ kbd {
   line-height: 1.4;
 }
 
-.privacy-note {
-  max-width: 64ch;
-  margin: 28px 0 0;
-  color: var(--muted);
-  font-size: 0.8125rem;
-  line-height: 1.5;
-}
-
 .extracting-lines {
   display: grid;
   gap: 8px;
