@@ -10,7 +10,7 @@ test('intake is ready for a link or pasted text without horizontal overflow', as
   const errors: string[] = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Bring the text/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Read one line at a time/i })).toBeVisible();
   await expect(page.getByRole('tab', { name: 'From a link' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Paste text' }).click();
   await expect(page.getByLabel('Text to read')).toBeVisible();

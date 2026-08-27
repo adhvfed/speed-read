@@ -169,10 +169,9 @@ function Intake({ onStart }: { onStart: (article: ArticleContent, sourceType: So
     <main className="workspace intake-workspace">
       <section className="intake-copy" aria-labelledby="intake-title">
         <p className="section-label">New reading</p>
-        <h1 id="intake-title">Bring the text.<br />Keep your place.</h1>
+        <h1 id="intake-title">Read one line at a time.</h1>
         <p>
-          Read one line at a time without chasing a moving page. You choose when to start; the boundary advances,
-          and the viewport moves only when that boundary reaches its edge.
+          Paste text or enter a link. Start when you’re ready. The page stays still while you work through it.
         </p>
         <div className="control-key-map" aria-label="Keyboard controls">
           <span><kbd>←</kbd><kbd>→</kbd> pace</span>
