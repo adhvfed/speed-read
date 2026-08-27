@@ -1,9 +1,11 @@
 # speed-read
 
-A quiet, line-by-line reading instrument. Import a public article or paste text, choose when to start, then move through it at your selected pace. The reading boundary advances automatically while the text itself never reflows.
+A Wikipedia roulette for speed-reading practice. Roll a random English Wikipedia article, read it behind a stable line-by-line boundary, take a short recall quiz, see your score, and roll again. A public link or pasted text can still be used instead.
 
 ## How it works
 
+- The primary action uses the MediaWiki Action API to choose one random, non-redirect article from English Wikipedia's main namespace, then prepares only its useful reading text.
+- A short dice-roll transition runs while the article is chosen. Duplicate requests are blocked, and reduced-motion preferences are respected.
 - Left and right arrows decrease or increase the target pace.
 - A prepared or restored text waits for the reader to press Start.
 - The countdown advances to the next line automatically at the selected pace.
@@ -14,6 +16,9 @@ A quiet, line-by-line reading instrument. Import a public article or paste text,
 - Desktop paging happens only when the active line leaves its safe viewport band. Mobile remains touch-scrollable and jumps one usable page, without animation, only when the curtain reaches the screen edge.
 - On mobile, the same four actions are available in a fixed thumb-control dock.
 - When quiz generation is configured, finishing a read creates a four-question recall check with GPT-5.6 Luna. Quiz results are saved with the local session and can be reviewed after refresh.
+- A scored quiz leads directly to the next roll. The local stats view groups quiz accuracy by measured 100-wpm speed bands and keeps a chronological, source-linked article log.
+
+Wikipedia selection follows [MediaWiki API etiquette](https://www.mediawiki.org/wiki/API:Etiquette): each user action makes one serial GET request, includes an `Api-User-Agent` that identifies this repository, supplies `maxlag`, and presents load/rate-limit failures as a recoverable roll state. The app does not bulk-download, prefetch, or retry pages in parallel.
 
 Prepared article bodies are stored only in this browser with IndexedDB. The local library is least-recently-used and bounded by all of: 100 articles, 50 MiB, 1% of the browser-reported storage quota, and reserved free-space headroom. Quota failures trigger one pruning retry; an article that still does not fit remains available only for the current read.
 

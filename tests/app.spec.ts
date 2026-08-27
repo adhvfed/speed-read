@@ -1,8 +1,38 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
+
+const WIKIPEDIA_ARTICLE = {
+  title: 'A brief note on attention',
+  byline: null,
+  siteName: 'Wikipedia',
+  sourceUrl: 'https://en.wikipedia.org/wiki/Attention',
+  paragraphs: [
+    'Attention is not a switch that turns on when we decide to concentrate. It is closer to a small agreement we keep making with the thing in front of us.',
+    'A stable page helps because the eyes can move without negotiating a moving target. The reading boundary marks when to continue while the text itself remains where it was placed.',
+    'Pace matters, but only as a useful constraint. A pace that is slightly demanding can quiet the impulse to circle back over familiar words. A pace that is too fast turns reading into guessing.',
+    'The useful measure is therefore personal. Can you stay with the argument, remember its shape, and finish more comfortably than you did before? Improvement begins with that honest comparison.',
+    'This article is long enough to try the controls. Use the arrow keys on a keyboard, or the controls at the bottom of a phone. Notice that the boundary advances while the page itself stays still.',
+  ],
+};
+
+async function startRoulette(page: Page) {
+  await page.getByRole('button', { name: 'Roll Wikipedia' }).click();
+  await expect(page.getByRole('main', { name: 'Choosing a Wikipedia article' })).toBeVisible();
+  await expect(page.locator('.rolling-die')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start reading' }).first()).toBeVisible({ timeout: 5_000 });
+}
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/quiz', async (route) => {
     await route.fulfill({ json: { available: false } });
+  });
+  await page.route(/https:\/\/en\.wikipedia\.org\/w\/api\.php.*/, async (route) => {
+    await route.fulfill({ json: {
+      query: { pages: [{ pageid: 42, title: WIKIPEDIA_ARTICLE.title, fullurl: WIKIPEDIA_ARTICLE.sourceUrl }] },
+    } });
+  });
+  await page.route('**/api/extract', async (route) => {
+    await route.fulfill({ json: WIKIPEDIA_ARTICLE });
   });
 });
 
@@ -10,14 +40,47 @@ test('intake is ready for a link or pasted text without horizontal overflow', as
   const errors: string[] = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /Read one line at a time/i })).toBeVisible();
-  await expect(page.getByRole('tab', { name: 'From a link' })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('tab', { name: 'Paste text' }).click();
-  await expect(page.getByLabel('Text to read')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Improve your speed reading' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Roll Wikipedia' })).toBeVisible();
+  await expect(page.getByLabel('Link or text')).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   expect(errors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('intake.png'), fullPage: true });
+});
+
+test('Wikipedia roulette uses a serial, identifiable random request before extraction', async ({ page }, testInfo) => {
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('en.wikipedia.org/w/api.php') || request.url().includes('/api/extract')) requests.push(request.url());
+  });
+  await page.goto('/');
+  const wikipediaRequest = page.waitForRequest((request) => request.url().includes('en.wikipedia.org/w/api.php'));
+  await page.getByRole('button', { name: 'Roll Wikipedia' }).click();
+  await expect(page.locator('.rolling-die')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('rolling.png'), fullPage: false });
+  const request = await wikipediaRequest;
+  const url = new URL(request.url());
+  expect(url.searchParams.get('generator')).toBe('random');
+  expect(url.searchParams.get('grnnamespace')).toBe('0');
+  expect(request.headers()['api-user-agent']).toContain('github.com/adhvfed/speed-read');
+  await expect(page.getByRole('button', { name: 'Start reading' }).first()).toBeVisible({ timeout: 5_000 });
+  expect(requests.findIndex((item) => item.includes('en.wikipedia.org')))
+    .toBeLessThan(requests.findIndex((item) => item.includes('/api/extract')));
+});
+
+test('a bare domain is inferred as an https link', async ({ page }) => {
+  let postedUrl = '';
+  await page.unroute('**/api/extract');
+  await page.route('**/api/extract', async (route) => {
+    postedUrl = (route.request().postDataJSON() as { url: string }).url;
+    await route.fulfill({ json: WIKIPEDIA_ARTICLE });
+  });
+  await page.goto('/');
+  await page.getByLabel('Link or text').fill('example.com/an-article');
+  await page.getByRole('button', { name: 'Prepare reading' }).click();
+  await expect(page.getByRole('button', { name: 'Start reading' }).first()).toBeVisible();
+  expect(postedUrl).toBe('https://example.com/an-article');
 });
 
 test('line and pace controls change state without moving the page', async ({ page }, testInfo) => {
@@ -78,7 +141,8 @@ test('countdown advances the boundary without scrolling the document', async ({ 
 test('a prepared article waits for Start and restores from its hash', async ({ page }, testInfo) => {
   await page.addInitScript(() => localStorage.setItem('speed-read:wpm', '800'));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Try the sample' }).click();
+  await startRoulette(page);
+  await expect.poll(() => page.evaluate(() => document.activeElement?.textContent?.trim())).toBe('Start reading');
   await expect(page.getByRole('button', { name: 'Start reading' }).first()).toBeVisible();
   await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/^#read\/[a-f0-9]{16,64}\/0$/);
   const firstText = await page.locator('.reading-line.active').textContent();
@@ -95,13 +159,13 @@ test('a prepared article waits for Start and restores from its hash', async ({ p
 
 test('an unknown saved-article hash falls back to a new read', async ({ page }) => {
   await page.goto('/#read/abcdef0123456789/12');
-  await expect(page.getByRole('heading', { name: /Bring the text/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Improve your speed reading' })).toBeVisible();
   await expect.poll(() => page.evaluate(() => location.hash)).toBe('');
 });
 
 test('manual line movement pages only after the active boundary leaves the usable screen', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Try the sample' }).click();
+  await startRoulette(page);
   await expect(page.getByRole('button', { name: 'Start reading' }).first()).toBeVisible();
   await page.keyboard.press('ArrowDown');
   expect(await page.evaluate(() => scrollY)).toBe(0);
@@ -122,10 +186,10 @@ test('a completed saved article can be read again', async ({ page }, testInfo) =
   test.skip(testInfo.project.name !== 'desktop', 'Completion workflow is covered once; responsive controls are tested separately.');
   await page.addInitScript(() => localStorage.setItem('speed-read:wpm', '800'));
   await page.goto('/');
-  await page.getByRole('button', { name: 'Try the sample' }).click();
+  await startRoulette(page);
   await page.locator('.reading-line').last().click();
   await page.getByRole('button', { name: 'Start reading' }).first().click();
-  await expect(page.getByRole('heading', { name: 'Reading, measured honestly.' })).toBeVisible({ timeout: 3_000 });
+  await expect(page.getByRole('heading', { name: 'Your Wikipedia trail.' })).toBeVisible({ timeout: 3_000 });
   await page.getByRole('button', { name: 'Read again' }).click();
   await expect(page.getByRole('button', { name: 'Start reading' }).first()).toBeVisible();
   await expect(page.locator('.reading-line.active')).toHaveAttribute('aria-label', /Attention is not a switch/);
@@ -154,7 +218,7 @@ test('a completed read receives a restorable, scored quiz when the endpoint is a
   });
 
   await page.goto('/');
-  await page.getByRole('button', { name: 'Try the sample' }).click();
+  await startRoulette(page);
   await page.locator('.reading-line').last().click();
   await page.getByRole('button', { name: 'Start reading' }).first().click();
   await expect(page.getByRole('heading', { name: 'What stayed with you?' })).toBeVisible({ timeout: 4_000 });
@@ -173,9 +237,15 @@ test('a completed read receives a restorable, scored quiz when the endpoint is a
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Here’s what stayed.' })).toBeVisible();
   await expect(page.locator('.quiz-question input[type="radio"]:checked')).toHaveCount(4);
-  await page.getByRole('button', { name: 'See progress' }).click();
+  await page.getByRole('button', { name: 'See stats' }).click();
   await expect(page.getByText('Quiz 4/4')).toBeVisible();
+  await expect(page.getByText('4/4 correct · 1 quiz')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Review quiz' })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('history.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Review quiz' }).click();
+  await page.getByRole('button', { name: 'Roll next article' }).click();
+  await expect(page.locator('.rolling-die')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start reading' }).first()).toBeVisible({ timeout: 5_000 });
 });
 
 test('keyboard focus follows a focused reading line when the boundary advances', async ({ page }) => {

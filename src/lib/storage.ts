@@ -11,13 +11,14 @@ function isCompletedSession(value: unknown): value is CompletedSession {
     typeof session.id === 'string' &&
     typeof session.title === 'string' &&
     (typeof session.sourceUrl === 'string' || session.sourceUrl === null) &&
-    ['url', 'text', 'sample'].includes(String(session.sourceType)) &&
+    ['wikipedia', 'url', 'text', 'sample'].includes(String(session.sourceType)) &&
     ['wordCount', 'durationSeconds', 'startWpm', 'endWpm', 'totalLines'].every(
       (key) => typeof session[key] === 'number' && Number.isFinite(session[key]),
     ) &&
     typeof session.startedAt === 'string' &&
     typeof session.completedAt === 'string' &&
     (session.articleId === undefined || typeof session.articleId === 'string') &&
+    (session.measuredWpm === undefined || (typeof session.measuredWpm === 'number' && Number.isFinite(session.measuredWpm) && session.measuredWpm > 0)) &&
     (session.quiz === undefined || isReadingQuiz(session.quiz))
   );
   if (!baseValid) return false;

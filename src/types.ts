@@ -29,13 +29,14 @@ export interface CompletedSession {
   id: string;
   title: string;
   sourceUrl: string | null;
-  sourceType: 'url' | 'text' | 'sample';
+  sourceType: 'wikipedia' | 'url' | 'text' | 'sample';
   wordCount: number;
   startedAt: string;
   completedAt: string;
   durationSeconds: number;
   startWpm: number;
   endWpm: number;
+  measuredWpm?: number;
   totalLines: number;
   articleId?: string;
   quiz?: ReadingQuiz;

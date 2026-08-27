@@ -1,9 +1,9 @@
 /**
- * THESIS: A stable page is crossed by one moving reading boundary; the design refuses continuous auto-scroll and dashboard chrome.
- * OWN-WORLD: Cool white and mineral-blue planes, one cobalt live edge, square regions, compact 6px controls, and one circular countdown.
- * STORY: Import useful text, place the boundary, read at a chosen pace, then compare the completed session with your own history.
- * FIRST VIEWPORT: A quiet utility column holds source and measurement; an opaque curtain ends at the selected line in the dominant reading field.
- * FORM: Split Utility, chosen from the fifth grounded direction and the second approved composition; seed dd95217d, study E.
+ * THESIS: Wikipedia roulette turns speed practice into a repeatable roll-read-recall loop; it refuses both generic import-first tooling and casino chrome.
+ * OWN-WORLD: Cool white and mineral-blue planes, one broad cobalt roll field, a geometric die, one cobalt reading edge, and flat evidence rows.
+ * STORY: Roll one useful article, read it at a chosen pace, see what stayed, then roll again with better evidence for the next speed.
+ * FIRST VIEWPORT: Exact benefit copy leads into a dominant cobalt Wikipedia roll; one combined link-or-text field remains visibly secondary.
+ * FORM: Information and wayfinding, with Wikipedia first and own-source second; Sutnar lineage, Catalog v1, seed random-e169e3b7c3a22bbf.
  */
 import {
   useCallback,
@@ -14,9 +14,11 @@ import {
 } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { getStoredArticle, storeArticle } from './lib/articleStore';
-import { extractArticle, generateQuiz, isQuizAvailable } from './lib/api';
+import { extractArticle, generateQuiz, isQuizAvailable, randomWikipediaArticle } from './lib/api';
 import { scoreQuiz } from './lib/quiz';
 import { parseHashRoute, quizHash, readerHash } from './lib/routes';
+import { inferReadingSource } from './lib/source';
+import { accuracyBySpeed } from './lib/stats';
 import {
   SAMPLE_ARTICLE,
   countWords,
@@ -28,7 +30,7 @@ import { loadLocalPace, loadLocalSessions, saveLocalPace, saveLocalSession } fro
 import { readingScrollDelta } from './lib/viewport';
 import type { ArticleContent, CompletedSession, ReadingLine, ReadingQuiz } from './types';
 
-type View = 'home' | 'reader' | 'history' | 'quiz' | 'loading';
+type View = 'home' | 'reader' | 'history' | 'quiz' | 'loading' | 'rolling';
 type SourceType = CompletedSession['sourceType'];
 type QuizStatus = 'idle' | 'loading' | 'error';
 
@@ -50,6 +52,10 @@ function formatDuration(seconds: number): string {
   return minutes > 0 ? `${minutes}m ${remainder}s` : `${remainder}s`;
 }
 
+function sessionSpeed(session: CompletedSession): number {
+  return session.measuredWpm ?? session.endWpm;
+}
+
 function Arrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down' }) {
   const rotations = { left: 180, right: 0, up: -90, down: 90 } as const;
   return (
@@ -61,6 +67,49 @@ function Arrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down' }) {
     >
       <path d="M5 12h13M13 6l6 6-6 6" />
     </svg>
+  );
+}
+
+function DiceIcon() {
+  return (
+    <svg className="dice-icon" viewBox="0 0 36 36" aria-hidden="true">
+      <rect x="3" y="3" width="30" height="30" rx="5" />
+      <circle cx="11" cy="11" r="2.1" />
+      <circle cx="25" cy="11" r="2.1" />
+      <circle cx="18" cy="18" r="2.1" />
+      <circle cx="11" cy="25" r="2.1" />
+      <circle cx="25" cy="25" r="2.1" />
+    </svg>
+  );
+}
+
+function DieFace({ value, className }: { value: number; className: string }) {
+  return (
+    <span className={`die-face ${className}`} data-value={value}>
+      {Array.from({ length: 9 }, (_, index) => <i key={index} />)}
+    </span>
+  );
+}
+
+function RollingDie() {
+  const [frontFace, setFrontFace] = useState(5);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setFrontFace((value) => value % 6 + 1), 420);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="die-scene" aria-hidden="true">
+      <div className="rolling-die">
+        <DieFace className="die-front" value={frontFace} />
+        <DieFace className="die-back" value={2} />
+        <DieFace className="die-right" value={3} />
+        <DieFace className="die-left" value={4} />
+        <DieFace className="die-top" value={1} />
+        <DieFace className="die-bottom" value={6} />
+      </div>
+    </div>
   );
 }
 
@@ -90,37 +139,49 @@ function Shell({
     <div className="app-shell">
       <aside className="utility-shell">
         <Wordmark onClick={() => onNavigate('home')} />
-        <p className="tagline">The text stays put.<br />You set the pace.</p>
+        <p className="tagline">Roll. Read.<br />See what stayed.</p>
         <nav className="primary-nav" aria-label="Primary">
           <button className={view === 'home' ? 'active' : ''} type="button" onClick={() => onNavigate('home')}>
-            New read
+            Wikipedia roulette
           </button>
           <button className={view === 'history' ? 'active' : ''} type="button" onClick={() => onNavigate('history')}>
-            Progress
+            Stats &amp; history
           </button>
         </nav>
         <p className="local-storage-note">Progress stays in this browser.</p>
       </aside>
       <div className="mobile-app-bar">
         <Wordmark onClick={() => onNavigate('home')} />
-        <button className="mobile-progress-link" type="button" onClick={() => onNavigate('history')}>Progress</button>
+        <button className="mobile-progress-link" type="button" onClick={() => onNavigate('history')}>Stats</button>
       </div>
       {children}
     </div>
   );
 }
 
-function Intake({ onStart }: { onStart: (article: ArticleContent, sourceType: SourceType) => Promise<void> }) {
-  const [mode, setMode] = useState<'link' | 'text'>('link');
-  const [url, setUrl] = useState('');
-  const [text, setText] = useState('');
+function Intake({
+  onStart,
+  onRoll,
+  rouletteError,
+}: {
+  onStart: (article: ArticleContent, sourceType: SourceType) => Promise<void>;
+  onRoll: () => void;
+  rouletteError: string;
+}) {
+  const [source, setSource] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const prepare = async () => {
     setError('');
-    if (mode === 'text') {
-      const article = pastedTextToArticle(text);
+    const inferred = inferReadingSource(source);
+    if (inferred.kind === 'invalid') {
+      setError(inferred.message);
+      return;
+    }
+
+    if (inferred.kind === 'text') {
+      const article = pastedTextToArticle(inferred.text);
       if (countWords(article.paragraphs) < 20) {
         setError('Add a little more text—about one short paragraph is enough to begin.');
         return;
@@ -134,32 +195,13 @@ function Intake({ onStart }: { onStart: (article: ArticleContent, sourceType: So
       return;
     }
 
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('protocol');
-    } catch {
-      setError('Enter a complete public link, including https://.');
-      return;
-    }
-
     setLoading(true);
     try {
-      const article = await extractArticle(parsed.toString());
+      const article = await extractArticle(inferred.url);
       if (countWords(article.paragraphs) < 20) throw new Error('The page did not contain enough useful reading text.');
       await onStart(article, 'url');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'That page could not be prepared. Try pasting its text instead.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startSample = async () => {
-    setError('');
-    setLoading(true);
-    try {
-      await onStart(SAMPLE_ARTICLE, 'sample');
+      setError(cause instanceof Error ? cause.message : 'That page could not be prepared. Paste its text instead.');
     } finally {
       setLoading(false);
     }
@@ -168,68 +210,71 @@ function Intake({ onStart }: { onStart: (article: ArticleContent, sourceType: So
   return (
     <main className="workspace intake-workspace">
       <section className="intake-copy" aria-labelledby="intake-title">
-        <p className="section-label">New reading</p>
-        <h1 id="intake-title">Read one line at a time.</h1>
-        <p>
-          Paste text or enter a link. Start when you’re ready. The page stays still while you work through it.
-        </p>
-        <div className="control-key-map" aria-label="Keyboard controls">
-          <span><kbd>←</kbd><kbd>→</kbd> pace</span>
-          <span><kbd>↑</kbd><kbd>↓</kbd> line</span>
-        </div>
+        <p className="section-label">Wikipedia roulette</p>
+        <h1 id="intake-title">Improve your speed reading</h1>
+        <p>Paste the link or text you want to read, gradually increase your reading speed when you become better.</p>
+        <p>Each run has an automatic quiz about the content at the end.</p>
       </section>
 
       <section className="intake-form" aria-label="Prepare a reading">
-        <div className="mode-tabs" role="tablist" aria-label="Source type">
-          <button role="tab" aria-selected={mode === 'link'} type="button" onClick={() => { setMode('link'); setError(''); }}>
-            From a link
-          </button>
-          <button role="tab" aria-selected={mode === 'text'} type="button" onClick={() => { setMode('text'); setError(''); }}>
-            Paste text
-          </button>
-        </div>
-
-        {mode === 'link' ? (
-          <label className="field-label">
-            Public article link
-            <input
-              type="url"
-              value={url}
-              onChange={(event) => setUrl(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') void prepare(); }}
-              placeholder="https://example.com/article"
-              autoComplete="url"
-              aria-invalid={Boolean(error)}
-            />
-          </label>
-        ) : (
-          <label className="field-label">
-            Text to read
-            <textarea
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Paste an article, essay, or notes…"
-              rows={10}
-              aria-invalid={Boolean(error)}
-            />
-          </label>
-        )}
-
-        <div className="form-actions">
-          <button className="primary-button" type="button" onClick={() => void prepare()} disabled={loading}>
-            {loading ? (mode === 'link' ? 'Removing page clutter…' : 'Saving locally…') : 'Prepare text'}
-          </button>
-          <button className="quiet-button" type="button" onClick={() => void startSample()} disabled={loading}>
-            Try the sample
-          </button>
-        </div>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        {loading && (
-          <div className="extracting-lines" aria-hidden="true">
-            <i /><i /><i />
+        <div className="roulette-launch">
+          <div className="roulette-intro">
+            <div>
+              <p className="section-label">Your next read</p>
+              <h2>Let Wikipedia decide.</h2>
+            </div>
+            <p>A random article from English Wikipedia, cleared of everything you do not need to read.</p>
           </div>
-        )}
+          <button className="roulette-button" type="button" onClick={onRoll} disabled={loading}>
+            <DiceIcon />
+            <span>Roll Wikipedia</span>
+            <Arrow direction="right" />
+          </button>
+          {rouletteError && <p className="form-error roulette-error" role="alert">{rouletteError}</p>}
+        </div>
+
+        <div className="own-source">
+          <div className="source-divider"><span>Or choose your own</span></div>
+          <label className="field-label">
+            Link or text
+            <textarea
+              value={source}
+              onChange={(event) => setSource(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void prepare();
+              }}
+              placeholder="Paste a link or the text itself…"
+              rows={5}
+              aria-invalid={Boolean(error)}
+            />
+          </label>
+          <div className="form-actions">
+            <button className="quiet-button source-submit" type="button" onClick={() => void prepare()} disabled={loading}>
+              {loading ? 'Preparing your reading…' : 'Prepare reading'}
+            </button>
+            <span>⌘ Enter</span>
+          </div>
+          {error && <p className="form-error" role="alert">{error}</p>}
+          {loading && (
+            <div className="extracting-lines" aria-hidden="true">
+              <i /><i /><i />
+            </div>
+          )}
+        </div>
       </section>
+    </main>
+  );
+}
+
+function RollTransition({ title }: { title: string }) {
+  return (
+    <main className="workspace roll-workspace" aria-live="polite" aria-label="Choosing a Wikipedia article">
+      <RollingDie />
+      <div className="roll-copy">
+        <p className="section-label">Wikipedia roulette</p>
+        <h1>{title || 'Rolling English Wikipedia…'}</h1>
+        <p>{title ? 'The article is chosen. Removing page clutter now.' : 'One article. No peeking.'}</p>
+      </div>
     </main>
   );
 }
@@ -348,6 +393,8 @@ function Reader({
   const [documentPaused, setDocumentPaused] = useState(() => document.hidden);
   const activeElement = useRef<HTMLButtonElement>(null);
   const readerStage = useRef<HTMLDivElement>(null);
+  const desktopStartButton = useRef<HTMLButtonElement>(null);
+  const mobileStartButton = useRef<HTMLButtonElement>(null);
   const finished = useRef(false);
   const activeIndex = findActiveLine(lines, activeWord);
   const activeLine = lines[activeIndex];
@@ -362,6 +409,17 @@ function Reader({
   const actualSeconds = Math.max(1, Math.round(elapsedMilliseconds / 1000));
   const actualWpm = Math.round((Math.max(0, passedWords - startWord) / actualSeconds) * 60);
   const lineDuration = activeLine ? clamp((activeLine.text.split(/\s+/).length / wpm) * 60, 0.9, 12) : 2;
+
+  useEffect(() => {
+    if (initiallyRunning) return;
+    const frame = requestAnimationFrame(() => {
+      const target = window.matchMedia('(max-width: 760px)').matches
+        ? mobileStartButton.current
+        : desktopStartButton.current;
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [initiallyRunning]);
 
   useLayoutEffect(() => {
     let frame = 0;
@@ -446,17 +504,20 @@ function Reader({
     const completedAt = new Date();
     const pendingPause = pausedAt.current ? completedAt.getTime() - pausedAt.current : 0;
     const durationMilliseconds = completedAt.getTime() - startedAt.getTime() - pausedDuration.current - pendingPause;
+    const durationSeconds = Math.max(1, Math.round(durationMilliseconds / 1000));
+    const completedWords = Math.max(0, totalWords - startWord);
     onFinish({
       id: makeId(),
       title: article.title,
       sourceUrl: article.sourceUrl,
       sourceType,
-      wordCount: Math.max(0, totalWords - startWord),
+      wordCount: completedWords,
       startedAt: startedAt.toISOString(),
       completedAt: completedAt.toISOString(),
-      durationSeconds: Math.max(1, Math.round(durationMilliseconds / 1000)),
+      durationSeconds,
       startWpm,
       endWpm: wpm,
+      ...(completedWords > 0 ? { measuredWpm: Math.max(1, Math.round((completedWords / durationSeconds) * 60)) } : {}),
       totalLines: lines.length,
       ...(storedLocally ? { articleId } : {}),
     });
@@ -518,7 +579,11 @@ function Reader({
         <Wordmark onClick={onExit} />
         <div className="reader-source">
           <p className="measurement-label">Source</p>
-          <h1>{article.title}</h1>
+          <h1>
+            {article.sourceUrl ? (
+              <a href={article.sourceUrl} target="_blank" rel="noreferrer">{article.title}</a>
+            ) : article.title}
+          </h1>
           {(article.byline || article.siteName) && (
             <p>{[article.byline, article.siteName].filter(Boolean).join(' · ')}</p>
           )}
@@ -538,7 +603,7 @@ function Reader({
           {running && passedWords - startWord > 8 && actualSeconds >= 15 && actualWpm > 0 ? <span> · {actualWpm} actual</span> : null}
         </p>
         {!running && (
-          <button className="primary-button reader-start-button" type="button" onClick={begin}>Start reading</button>
+          <button ref={desktopStartButton} className="primary-button reader-start-button" type="button" onClick={begin}>Start reading</button>
         )}
         <div className="desktop-reader-controls">
           <ReaderControl label="Slower" keyLabel="←" direction="left" onClick={() => adjustPace(-WPM_STEP)} disabled={wpm === MIN_WPM} />
@@ -581,8 +646,11 @@ function Reader({
                 </button>
               );
             })}
-            <div className="article-end" aria-hidden={activeIndex !== lines.length - 1}>
+            <div className="article-end">
               <span>End of text</span>
+              {article.sourceUrl && (
+                <a href={article.sourceUrl} target="_blank" rel="noreferrer">Open original source</a>
+              )}
               {atEnd && running && (
                 <button className="primary-button" type="button" onClick={finish}>Finish and save</button>
               )}
@@ -594,7 +662,7 @@ function Reader({
       {!running ? (
         <div className="mobile-reader-start">
           <span>Line {activeIndex + 1} · {wpm} wpm</span>
-          <button className="primary-button" type="button" onClick={begin}>Start reading</button>
+          <button ref={mobileStartButton} className="primary-button" type="button" onClick={begin}>Start reading</button>
         </div>
       ) : (
         <div className="mobile-reader-controls" aria-label="Reading controls">
@@ -615,6 +683,7 @@ function Quiz({
   error,
   onRetry,
   onProgress,
+  onRollNext,
   onComplete,
 }: {
   session: CompletedSession;
@@ -623,6 +692,7 @@ function Quiz({
   error: string;
   onRetry: () => void;
   onProgress: () => void;
+  onRollNext: () => void;
   onComplete: (answers: number[], score: number, total: number) => void;
 }) {
   const [answers, setAnswers] = useState<Record<number, number>>(() => Object.fromEntries(
@@ -651,7 +721,8 @@ function Quiz({
         <p className="quiz-error" role="alert">{error || 'The quiz could not be restored.'}</p>
         <div className="quiz-actions">
           {status === 'error' && <button className="primary-button" type="button" onClick={onRetry}>Try the quiz again</button>}
-          <button className="quiet-button" type="button" onClick={onProgress}>See progress</button>
+          <button className="quiet-button" type="button" onClick={onRollNext}>Roll another article</button>
+          <button className="quiet-button" type="button" onClick={onProgress}>See stats</button>
         </div>
       </main>
     );
@@ -674,10 +745,17 @@ function Quiz({
           <h1>{submitted ? 'Here’s what stayed.' : 'What stayed with you?'}</h1>
           <p>{submitted ? 'Review the grounded answer for each question.' : 'Four questions from the text, created only after you finished reading.'}</p>
         </div>
-        <div className="quiz-measure" aria-live="polite">
-          <span>{submitted ? 'Result' : 'Answered'}</span>
-          <strong>{submitted ? score : answeredCount}</strong>
-          <small>/ {quiz.questions.length}</small>
+        <div className="quiz-result-column">
+          <div className="quiz-measure" aria-live="polite">
+            <span>{submitted ? 'Score' : 'Answered'}</span>
+            <strong>{submitted ? score : answeredCount}</strong>
+            <small>/ {quiz.questions.length}</small>
+          </div>
+          {submitted && (
+            <button className="primary-button quiz-next-button" type="button" onClick={onRollNext}>
+              Roll next article
+            </button>
+          )}
         </div>
       </header>
 
@@ -711,14 +789,15 @@ function Quiz({
         ))}
 
         <footer className="quiz-footer">
-          <p>Generated by GPT-5.6 Luna from this reading. The source is not retained by speed-read.</p>
+          <p>Generated by GPT-5.6 Luna from this reading. Your score stays in this browser.</p>
           <div className="quiz-actions">
             {!submitted && (
               <button className="primary-button" type="submit" disabled={answeredCount !== quiz.questions.length}>
                 Check my answers
               </button>
             )}
-            <button className="quiet-button" type="button" onClick={onProgress}>See progress</button>
+            {submitted && <button className="primary-button" type="button" onClick={onRollNext}>Roll another article</button>}
+            <button className="quiet-button" type="button" onClick={onProgress}>See stats</button>
           </div>
         </footer>
       </form>
@@ -729,12 +808,14 @@ function Quiz({
 function History({
   sessions,
   onNewRead,
+  onRoll,
   onRerun,
   onQuiz,
   rerunError,
 }: {
   sessions: CompletedSession[];
   onNewRead: () => void;
+  onRoll: () => void;
   onRerun: (session: CompletedSession) => void;
   onQuiz: (session: CompletedSession) => void;
   rerunError: string;
@@ -742,50 +823,90 @@ function History({
   const ordered = [...sessions].sort((a, b) => b.completedAt.localeCompare(a.completedAt));
   const latest = ordered[0];
   const first = ordered.at(-1);
-  const paceChange = latest && first ? latest.endWpm - first.endWpm : 0;
+  const paceChange = latest && first ? sessionSpeed(latest) - sessionSpeed(first) : 0;
   const totalWords = ordered.reduce((sum, session) => sum + session.wordCount, 0);
+  const scored = ordered.filter((session) => session.quizScore !== undefined && Boolean(session.quizTotal));
+  const correctAnswers = scored.reduce((sum, session) => sum + (session.quizScore ?? 0), 0);
+  const totalAnswers = scored.reduce((sum, session) => sum + (session.quizTotal ?? 0), 0);
+  const overallAccuracy = totalAnswers ? Math.round((correctAnswers / totalAnswers) * 100) : null;
+  const accuracyBands = accuracyBySpeed(ordered);
 
   return (
     <main className="workspace history-workspace">
       <header className="history-header">
         <div>
-          <p className="section-label">Your progress</p>
-          <h1>Reading, measured honestly.</h1>
-          <p>Completed reads saved in this browser.</p>
+          <p className="section-label">Stats &amp; history</p>
+          <h1>Your Wikipedia trail.</h1>
+          <p>Every completed reading and quiz score, saved in this browser.</p>
         </div>
-        <button className="primary-button" type="button" onClick={onNewRead}>Start a new read</button>
+        <div className="history-header-actions">
+          <button className="primary-button" type="button" onClick={onRoll}>Roll a new article</button>
+          <button className="quiet-button" type="button" onClick={onNewRead}>Use your own text</button>
+        </div>
       </header>
       {rerunError && <p className="form-error history-error" role="alert">{rerunError}</p>}
 
       {ordered.length === 0 ? (
         <section className="history-empty">
           <span className="empty-boundary" aria-hidden="true" />
-          <h2>No completed reads yet.</h2>
-          <p>Finish one text and its pace, duration, and word count will appear here.</p>
-          <button className="quiet-button" type="button" onClick={onNewRead}>Start a new read</button>
+          <h2>Your first article is one roll away.</h2>
+          <p>Finish it and its pace, quiz score, and title will appear here.</p>
+          <button className="primary-button" type="button" onClick={onRoll}>Roll Wikipedia</button>
         </section>
       ) : (
         <>
           <section className="summary-strip" aria-label="Progress summary">
-            <div><span>Latest pace</span><strong>{latest.endWpm}</strong><small>wpm</small></div>
-            <div><span>Change</span><strong>{paceChange > 0 ? '+' : ''}{paceChange}</strong><small>wpm</small></div>
-            <div><span>Words read</span><strong>{totalWords.toLocaleString()}</strong></div>
+            <div><span>Articles read</span><strong>{ordered.length}</strong></div>
+            <div><span>Quiz accuracy</span><strong>{overallAccuracy ?? '—'}</strong>{overallAccuracy !== null && <small>%</small>}</div>
+            <div><span>Latest speed</span><strong>{sessionSpeed(latest)}</strong><small>wpm</small></div>
+          </section>
+          <section className="accuracy-history" aria-labelledby="accuracy-history-title">
+            <header>
+              <h2 id="accuracy-history-title">Recall by speed</h2>
+              <p>
+                {totalWords.toLocaleString()} words read
+                {ordered.length > 1 ? ` · ${paceChange > 0 ? '+' : ''}${paceChange} wpm since your first finish` : ''}
+                {' · '}quiz scores grouped by measured reading speed
+              </p>
+            </header>
+            {accuracyBands.length ? (
+              <div className="accuracy-table">
+                {accuracyBands.map((band) => (
+                  <div className="accuracy-row" key={band.minWpm}>
+                    <span>{band.label} wpm</span>
+                    <div aria-hidden="true"><i style={{ '--accuracy-width': `${band.accuracy}%` } as CSSProperties} /></div>
+                    <strong>{band.accuracy}%</strong>
+                    <small>{band.correct}/{band.total} correct · {band.reads} {band.reads === 1 ? 'quiz' : 'quizzes'}</small>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="accuracy-empty">Complete a quiz to see how recall changes at different speeds.</p>
+            )}
           </section>
           <section className="session-history" aria-labelledby="session-history-title">
-            <h2 id="session-history-title">Completed reads</h2>
+            <h2 id="session-history-title">Article log</h2>
             <div className="session-list">
               {ordered.map((session, index) => {
-                const maxPace = Math.max(...ordered.map((item) => item.endWpm), 1);
+                const speed = sessionSpeed(session);
+                const maxPace = Math.max(...ordered.map(sessionSpeed), 1);
                 return (
                   <article className="session-row" key={session.id}>
                     <div className="session-index">{String(ordered.length - index).padStart(2, '0')}</div>
                     <div className="session-title">
-                      <h3>{session.title}</h3>
-                      <p>{new Date(session.completedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</p>
+                      <h3>
+                        {session.sourceUrl ? (
+                          <a href={session.sourceUrl} target="_blank" rel="noreferrer">{session.title}</a>
+                        ) : session.title}
+                      </h3>
+                      <p>
+                        {new Date(session.completedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                        {session.sourceType === 'wikipedia' ? ' · Wikipedia' : ''}
+                      </p>
                     </div>
                     <div className="session-pace">
-                      <span style={{ '--pace-width': `${(session.endWpm / maxPace) * 100}%` } as CSSProperties} />
-                      <strong>{session.endWpm}</strong><small>wpm</small>
+                      <span style={{ '--pace-width': `${(speed / maxPace) * 100}%` } as CSSProperties} />
+                      <strong>{speed}</strong><small>wpm</small>
                     </div>
                     <div className="session-detail">
                       <span>
@@ -826,6 +947,11 @@ export default function App() {
   const [quizStatus, setQuizStatus] = useState<QuizStatus>('idle');
   const [quizError, setQuizError] = useState('');
   const [quizAvailability, setQuizAvailability] = useState<boolean | null>(null);
+  const [rouletteError, setRouletteError] = useState('');
+  const [rollingTitle, setRollingTitle] = useState('');
+  const rollInFlight = useRef(false);
+  const rollGeneration = useRef(0);
+  const rollAbort = useRef<AbortController | null>(null);
 
   const setRoute = useCallback((hash: string, mode: 'push' | 'replace' = 'push') => {
     const url = `${window.location.pathname}${window.location.search}${hash}`;
@@ -925,15 +1051,81 @@ export default function App() {
     };
   }, [demo, loadReader, setRoute]);
 
-  const start = async (nextArticle: ArticleContent, nextSourceType: SourceType) => {
+  const start = async (
+    nextArticle: ArticleContent,
+    nextSourceType: SourceType,
+    stillCurrent?: () => boolean,
+  ) => {
+    setRouletteError('');
     const stored = await storeArticle(nextArticle, nextSourceType);
+    if (stillCurrent && !stillCurrent()) return;
     loadReader(nextArticle, stored.id, nextSourceType, 0, stored.saved);
     setRoute(readerHash(stored.id, 0));
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
+  const rollWikipedia = async () => {
+    if (rollInFlight.current) return;
+    rollInFlight.current = true;
+    const generation = ++rollGeneration.current;
+    const controller = new AbortController();
+    rollAbort.current = controller;
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 20_000);
+    setRouletteError('');
+    setRollingTitle('');
+    setArticle(null);
+    setArticleId(null);
+    setQuizSessionId(null);
+    setView('rolling');
+    setRoute('');
+    window.scrollTo({ top: 0, behavior: 'auto' });
+
+    try {
+      const [selectionResult] = await Promise.allSettled([
+        randomWikipediaArticle(fetch, controller.signal),
+        new Promise((resolve) => window.setTimeout(resolve, 1_100)),
+      ]);
+      if (selectionResult.status === 'rejected') throw selectionResult.reason;
+      if (generation !== rollGeneration.current) return;
+      const selection = selectionResult.value;
+      setRollingTitle(selection.title);
+      const extracted = await extractArticle(selection.url, controller.signal);
+      const nextArticle = {
+        ...extracted,
+        title: selection.title,
+        siteName: 'Wikipedia',
+        sourceUrl: selection.url,
+      };
+      if (countWords(nextArticle.paragraphs) < 20) {
+        throw new Error('That article was too short for a useful run. Roll again.');
+      }
+      if (generation !== rollGeneration.current) return;
+      window.clearTimeout(timeout);
+      await start(nextArticle, 'wikipedia', () => generation === rollGeneration.current);
+    } catch (error) {
+      if (generation !== rollGeneration.current) return;
+      setRouletteError(timedOut
+        ? 'The roll took too long. Check your connection and roll again.'
+        : error instanceof Error ? error.message : 'The roll did not land. Try again.');
+      setView('home');
+    } finally {
+      window.clearTimeout(timeout);
+      if (rollAbort.current === controller) rollAbort.current = null;
+      if (generation === rollGeneration.current) rollInFlight.current = false;
+    }
+  };
+
   const navigate = (nextView: View) => {
     if (nextView === 'reader' || nextView === 'loading') return;
+    rollAbort.current?.abort();
+    rollAbort.current = null;
+    rollGeneration.current += 1;
+    rollInFlight.current = false;
+    setRollingTitle('');
     setView(nextView);
     setArticle(null);
     setArticleId(null);
@@ -1059,6 +1251,7 @@ export default function App() {
         <History
           sessions={sessions}
           onNewRead={() => navigate('home')}
+          onRoll={() => void rollWikipedia()}
           onRerun={(session) => void rerun(session)}
           onQuiz={openQuiz}
           rerunError={rerunError}
@@ -1072,15 +1265,18 @@ export default function App() {
           error={quizError}
           onRetry={() => void retryQuiz()}
           onProgress={() => navigate('history')}
+          onRollNext={() => void rollWikipedia()}
           onComplete={completeQuiz}
         />
+      ) : view === 'rolling' ? (
+        <RollTransition title={rollingTitle} />
       ) : view === 'loading' ? (
         <main className="workspace restore-workspace" aria-live="polite">
           <p className="section-label">Saved locally</p>
           <h1>Restoring your text…</h1>
         </main>
       ) : (
-        <Intake onStart={start} />
+        <Intake onStart={start} onRoll={() => void rollWikipedia()} rouletteError={rouletteError} />
       )}
     </Shell>
   );

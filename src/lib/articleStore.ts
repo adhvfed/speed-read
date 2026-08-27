@@ -89,7 +89,7 @@ function isStoredArticle(value: unknown): value is StoredArticle {
   const article = record.article;
   return typeof record.id === 'string' &&
     Boolean(article && typeof article.title === 'string' && Array.isArray(article.paragraphs) && article.paragraphs.every((item) => typeof item === 'string')) &&
-    ['url', 'text', 'sample'].includes(String(record.sourceType)) &&
+    ['wikipedia', 'url', 'text', 'sample'].includes(String(record.sourceType)) &&
     [record.createdAt, record.updatedAt, record.lastAccessedAt, record.estimatedBytes]
       .every((item) => typeof item === 'number' && Number.isFinite(item) && item >= 0);
 }

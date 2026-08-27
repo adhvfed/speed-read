@@ -1,6 +1,6 @@
 ---
 name: speed-read
-description: A calm reading instrument that keeps the page still and the reader in control.
+description: A playful Wikipedia reading ritual that keeps the page still and the reader in control.
 colors:
   cobalt-signal: "#0B63F6"
   cobalt-deep: "#084BB8"
@@ -72,19 +72,20 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Reading Boundary"**
+**Creative North Star: "The Roll and the Reading Boundary"**
 
-speed-read is a flat humanist instrument built around one moving horizontal boundary. The opaque curtain above that boundary is the product's central visual fact: read material disappears, the active line stays precise, and untouched text remains calm below it. A quiet utility column keeps measurement and reading controls separate from the reading field.
+speed-read is a flat humanist instrument with one playful entrance and one exact reading mechanism. A die rolls to choose an English Wikipedia article; once it lands, an opaque curtain crosses the stable text one line at a time. A quiet utility column keeps measurement and reading controls separate from the reading field.
 
-The product should feel exact without feeling clinical. Geometry is clean, spacing is generous, and saturated color is reserved for the active boundary, primary action, focus, and live countdown. It rejects literal rulers, paper props, brass hardware, bevels, gamified dashboards, account chrome, and book-themed nostalgia.
+The product should feel curious without becoming noisy, and exact without becoming clinical. Geometry is clean, spacing is generous, and saturated color is reserved for the roll, active boundary, primary action, focus, and live countdown. It rejects casino decoration, literal rulers, paper props, brass hardware, bevels, gamified dashboards, account chrome, and book-themed nostalgia.
 
 **Key Characteristics:**
 
 - One flat cover plane and one cobalt reading edge.
+- One authored dice-roll transition that carries the user from choice into focus.
 - Stable, high-legibility text with a 65–72 character measure.
 - A pale utility region that recedes beside the article.
 - Measurement shown with tabular numerals, not decorative charts.
-- Motion only for the countdown and direct state changes.
+- Motion only for the dice roll, countdown, and direct state changes.
 
 ## Colors
 
@@ -108,6 +109,8 @@ The palette moves from daylight white through cool mineral neutrals to a deep bl
 ### Named Rules
 
 **The Live Edge Rule.** Cobalt marks only what the reader can act on now. It does not decorate inactive surfaces.
+
+**The Roll Rule.** The die is the only playful symbol. It is geometric, cobalt, and purposeful—not a casino motif repeated across the interface.
 
 ## Typography
 
@@ -176,9 +179,17 @@ Two SVG circles share one center: a quiet limit track and a cobalt meter whose d
 
 Prepared, restored, and rerun texts begin stopped. The full meter, active line, pace, and explicit Start action are visible before timing begins. This state uses the same reading composition rather than introducing an overlay.
 
-### Recall Check
+### Wikipedia Roll
 
-The post-reading quiz is a flat continuation of the instrument, not a gamified results screen. Four numbered fieldsets form one uninterrupted column with hairline divisions. Choices use native radio controls; after submission, a narrow success or error rule and explicit text identify the correct and selected answers. The result is one tabular measurement beside the heading. Loading uses the same quiet line pulse as extraction, and failure always confirms that the completed read was saved.
+The primary intake action is a broad cobalt field with a single die. Activating it leads to a full-workspace transition: the die tumbles while the MediaWiki selection is in flight, then the chosen title appears while useful text is extracted. Reduced-motion users see the die change face without spatial tumbling. The transition never launches more than one roll request at a time.
+
+### Recall Check and Score
+
+The post-reading quiz is a flat continuation of the instrument, not a gamified results screen. Four numbered fieldsets form one uninterrupted column with hairline divisions. Choices use native radio controls; after submission, a narrow success or error rule and explicit text identify the correct and selected answers. The result is one tabular measurement beside the heading, paired with a clear next-roll action. Loading uses the same quiet line pulse as extraction, and failure always confirms that the completed read was saved.
+
+### Stats and Article Log
+
+Accuracy-by-speed uses horizontal table rows rather than decorative charts: each measured-speed band shows percent correct, correct/total questions, and number of quizzes. The article log is chronological and links Wikipedia titles back to their source. Missing quiz scores remain visibly unscored rather than being treated as zero.
 
 ## Do's and Don'ts
 
@@ -189,6 +200,7 @@ The post-reading quiz is a flat continuation of the instrument, not a gamified r
 - **Do** preserve keyboard, touch, focus, and reduced-motion behavior as first-class states.
 - **Do** keep measurement secondary to reading.
 - **Do** make quiz correctness understandable without relying on color, and keep explanations grounded and concise.
+- **Do** make the roll feel like one small moment of anticipation and make another roll easy after scoring.
 
 ### Don't:
 
@@ -196,4 +208,4 @@ The post-reading quiz is a flat continuation of the instrument, not a gamified r
 - **Don't** let covered text remain readable through opacity, blur, or texture.
 - **Don't** use literal instrument hardware, paper nostalgia, pills, gradients, glass, or decorative dashboards.
 - **Don't** use cobalt on inactive decoration.
-- **Don't** add streaks, confetti, badges, or normative comprehension labels to quiz results.
+- **Don't** turn the roll into casino chrome or add streaks, confetti, badges, or normative comprehension labels to quiz results.
