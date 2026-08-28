@@ -886,7 +886,21 @@ function RoundView({
   ));
   const [questionIndex, setQuestionIndex] = useState(0);
   const [questionDirection, setQuestionDirection] = useState<'forward' | 'back'>('forward');
+  const [answerLocked, setAnswerLocked] = useState(false);
+  const advanceTimer = useRef<number | null>(null);
+  const questionRef = useRef<HTMLFieldSetElement>(null);
+  const focusNextQuestion = useRef(false);
   const answeredCount = Object.keys(answers).length;
+
+  useEffect(() => () => {
+    if (advanceTimer.current !== null) window.clearTimeout(advanceTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (!focusNextQuestion.current) return;
+    focusNextQuestion.current = false;
+    questionRef.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+  }, [questionIndex]);
 
   const breakdown = useMemo(
     () => (submitted
@@ -897,10 +911,10 @@ function RoundView({
 
   if (status === 'loading') {
     return (
-      <main className="workspace round-workspace round-pending" aria-live="polite">
+      <main className="workspace round-workspace round-pending quiz-kickoff" aria-live="polite">
         <p className="section-label">Round complete</p>
-        <h1>Writing your recall check…</h1>
-        <p>Four questions, drawn only from the article you just read.</p>
+        <h1>Quiz time!</h1>
+        <p>Loading four questions…</p>
         <div className="quiz-loading-lines" aria-hidden="true"><i /><i /><i /><i /></div>
       </main>
     );
@@ -932,49 +946,57 @@ function RoundView({
     setQuestionIndex(nextIndex);
   };
 
-  const advance = () => {
-    if (answers[questionIndex] === undefined) return;
-    if (questionIndex === quiz.questions.length - 1) {
-      submit();
-      return;
-    }
-    showQuestion(questionIndex + 1);
+  const chooseAnswer = (choiceIndex: number) => {
+    if (submitted || answerLocked) return;
+    const nextAnswers = { ...answers, [questionIndex]: choiceIndex };
+    setAnswers(nextAnswers);
+    setAnswerLocked(true);
+    advanceTimer.current = window.setTimeout(() => {
+      if (questionIndex === quiz.questions.length - 1) {
+        onSubmit(quiz.questions.map((_, index) => nextAnswers[index]));
+        window.scrollTo({ top: 0, behavior: 'auto' });
+      } else {
+        setQuestionDirection('forward');
+        focusNextQuestion.current = true;
+        setQuestionIndex(questionIndex + 1);
+        setAnswerLocked(false);
+      }
+      advanceTimer.current = null;
+    }, prefersReducedMotion() ? 20 : 240);
   };
 
   const question = quiz.questions[questionIndex];
 
   return (
     <main className="workspace round-workspace">
-      <header className="round-header">
+      {submitted ? <header className="round-header">
         <div>
           <p className="section-label">
             Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm
           </p>
-          <h1>{submitted ? 'Here’s what stayed.' : 'What stayed with you?'}</h1>
-          {submitted ? (
-            <p className="round-summary">
-              {round.passed ? `Streak ${round.streakBefore + 1}` : 'Streak reset'}
-              {newBest && <em> · New best</em>}
-            </p>
-          ) : (
-            <p>Three of four to pass.</p>
-          )}
+          <h1>Here’s what stayed.</h1>
+          <p className="round-summary">
+            {round.passed ? `Streak ${round.streakBefore + 1}` : 'Streak reset'}
+            {newBest && <em> · New best</em>}
+          </p>
         </div>
-        {submitted && breakdown ? (
+        {breakdown && (
           <Scoreboard
             breakdown={breakdown}
             wpm={round.committedWpm}
             correct={round.correct}
             questions={round.questions}
           />
-        ) : (
-          <div className="quiz-measure" aria-live="polite">
-            <span>Question</span>
-            <strong>{questionIndex + 1}</strong>
-            <small>/ {quiz.questions.length}</small>
-          </div>
         )}
-      </header>
+      </header> : (
+        <header className="quiz-intro">
+          <p>Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm</p>
+          <div className="quiz-time-strike">
+            <h1>Quiz time!</h1>
+            <span>3/4 to pass</span>
+          </div>
+        </header>
+      )}
 
       {submitted && (
         <section className="round-standing" aria-label="Your standing">
@@ -1000,7 +1022,7 @@ function RoundView({
           ))}
         </div>
         <div className={`quiz-question-stage ${questionDirection}`} key={`${submitted ? 'review' : 'quiz'}-${questionIndex}`}>
-          <fieldset className="quiz-question" disabled={submitted}>
+          <fieldset ref={questionRef} className="quiz-question" disabled={submitted || answerLocked}>
             <legend><span>{String(questionIndex + 1).padStart(2, '0')}</span>{question.prompt}</legend>
             <div className="quiz-choices">
               {question.choices.map((choice, choiceIndex) => {
@@ -1014,7 +1036,7 @@ function RoundView({
                       name={`question-${questionIndex}`}
                       value={choiceIndex}
                       checked={selected}
-                      onChange={() => setAnswers((current) => ({ ...current, [questionIndex]: choiceIndex }))}
+                      onChange={() => chooseAnswer(choiceIndex)}
                     />
                     <span>{choice}</span>
                     {correct && <b>Correct answer</b>}
@@ -1027,7 +1049,7 @@ function RoundView({
           </fieldset>
         </div>
 
-        <footer className="quiz-footer">
+        {submitted && <footer className="quiz-footer">
           <button
             className="quiet-button quiz-back"
             type="button"
@@ -1037,18 +1059,13 @@ function RoundView({
             <Arrow direction="left" /> Previous
           </button>
           <div className="quiz-actions">
-            {!submitted ? (
-              <button className="primary-button" type="button" onClick={advance} disabled={answers[questionIndex] === undefined}>
-                {questionIndex === quiz.questions.length - 1 ? 'See my score' : 'Next question'}
-                {questionIndex < quiz.questions.length - 1 && <Arrow direction="right" />}
-              </button>
-            ) : questionIndex < quiz.questions.length - 1 ? (
+            {questionIndex < quiz.questions.length - 1 ? (
               <button className="primary-button" type="button" onClick={() => showQuestion(questionIndex + 1)}>
                 Next answer <Arrow direction="right" />
               </button>
             ) : null}
           </div>
-        </footer>
+        </footer>}
       </form>
     </main>
   );

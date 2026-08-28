@@ -49,7 +49,9 @@ async function answerAll(page: Page, choice = 0) {
     const question = page.locator('.quiz-question');
     await expect(question).toHaveCount(1);
     await question.getByRole('radio').nth(choice).check();
-    await page.getByRole('button', { name: index === QUIZ.questions.length - 1 ? 'See my score' : 'Next question' }).click();
+    if (index < QUIZ.questions.length - 1) {
+      await expect(question.locator('legend')).toContainText(`Grounded question ${index + 2}?`);
+    }
   }
 }
 
@@ -223,9 +225,10 @@ test('a finished round is scored, banked, and restorable from its hash', async (
   await page.keyboard.press('2'); // Brisk, 300 wpm
   await playRound(page);
 
-  await expect(page.getByRole('heading', { name: 'What stayed with you?' })).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByRole('heading', { name: 'Quiz time!' })).toBeVisible({ timeout: 8_000 });
   await expect(page.locator('.quiz-question')).toHaveCount(1);
   await expect(page.locator('.quiz-question legend')).toContainText('Grounded question 1?');
+  await expect(page.getByRole('button', { name: 'Next question' })).toHaveCount(0);
   await page.waitForTimeout(350);
   await page.screenshot({ path: testInfo.outputPath('quiz.png'), fullPage: true });
   await answerAll(page);
@@ -255,7 +258,7 @@ test('a failed round pays less and resets the streak', async ({ page }, testInfo
   await rollToBetScreen(page);
   await page.keyboard.press('2');
   await playRound(page);
-  await expect(page.getByRole('heading', { name: 'What stayed with you?' })).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByRole('heading', { name: 'Quiz time!' })).toBeVisible({ timeout: 8_000 });
   // Every second choice is wrong, so this scores zero of four.
   await answerAll(page, 1);
   await expect(page.locator('.scoreboard')).toContainText('Round failed');
@@ -274,7 +277,7 @@ test('progress reports the comprehension curve and the round log', async ({ page
   await expect(page.locator('.bet-workspace')).toBeVisible({ timeout: 8_000 });
   await page.keyboard.press('2');
   await playRound(page);
-  await expect(page.getByRole('heading', { name: 'What stayed with you?' })).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByRole('heading', { name: 'Quiz time!' })).toBeVisible({ timeout: 8_000 });
   await answerAll(page);
   await page.getByRole('button', { name: 'See progress' }).click();
 
