@@ -20,7 +20,7 @@ Unlike rapid-serial-word-presentation readers, speed-read never pulls or reflows
 
 ## Operating Context
 
-The product is a public website intended for `speed-read.adhv.me`. It is used on desktop with arrow keys and on mobile with quiet, touch-friendly substitute controls. Most sessions begin with a Wikipedia roll; readers may also arrive with a URL or text already copied to their clipboard.
+The product is a public website intended for `read.adhv.me`. It is used on desktop with arrow keys and on mobile with quiet, touch-friendly substitute controls. Most sessions begin with a Wikipedia roll; readers may also arrive with a URL or text already copied to their clipboard.
 
 ## Capabilities and Constraints
 

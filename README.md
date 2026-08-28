@@ -55,7 +55,7 @@ The repository ignores `.env*` and `.dev.vars*`. Do not add an API key to either
 
 ## Deployment
 
-The Cloudflare Pages project is named `speed-read`; its intended custom domain is `speed-read.adhv.me`.
+The Cloudflare Pages project is named `speed-read`; its intended custom domain is `read.adhv.me`.
 
 Use a separately provisioned production key, not the Service Federation development vault. Add it as an encrypted Pages secret in **Workers & Pages → speed-read → Settings → Variables and Secrets**, or enter it interactively when Wrangler prompts:
 
