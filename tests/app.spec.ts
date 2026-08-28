@@ -36,12 +36,20 @@ async function rollToBetScreen(page: Page) {
 }
 
 async function playRound(page: Page) {
+  // Scoring tests exercise the semantic reader path without waiting through
+  // every visual travel. Reduced motion is the product's supported snap path.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.locator('.bet-start').click();
   await expect(page.locator('.reader-shell')).toBeVisible();
   await expect(page.locator('.reading-line.active')).toBeVisible();
   await expect(page.getByRole('progressbar', { name: 'Article progress' })).toContainText('0%read');
   for (let index = 0; index < 200 && await page.locator('.article-end .primary-button').count() === 0; index += 1) {
+    const currentLine = await page.locator('.reading-line.active').getAttribute('data-line-index');
     await page.keyboard.press('ArrowDown');
+    if (await page.locator('.article-end .primary-button').count() === 0) {
+      await expect.poll(() => page.locator('.reading-line.active').getAttribute('data-line-index'))
+        .not.toBe(currentLine);
+    }
   }
   await page.keyboard.press('ArrowDown');
 }
@@ -245,7 +253,7 @@ test('manual reader scrolling remains under the player’s control', async ({ pa
   expect(await page.evaluate(() => window.scrollY)).toBe(manuallyScrolledTo);
 });
 
-test('the reading window moves only after a line is finished', async ({ page }) => {
+test('the reading window moves only after a line is finished', async ({ page }, testInfo) => {
   await page.goto('/?demo=reader');
   await expect(page.locator('.reading-line.active')).toBeVisible();
   await page.keyboard.press('Space');
@@ -259,12 +267,46 @@ test('the reading window moves only after a line is finished', async ({ page }) 
   expect(await curtain.evaluate((element) => element.getBoundingClientRect().bottom)).toBeCloseTo(startingBoundary, 0);
 
   const activeIndex = Number(await page.locator('.reading-line.active').getAttribute('data-line-index'));
-  const finishedLine = page.locator(`.reading-line[data-line-index="${activeIndex}"]`);
+  const activeLine = page.locator(`.reading-line[data-line-index="${activeIndex}"]`);
+  const nextLine = page.locator(`.reading-line[data-line-index="${activeIndex + 1}"]`);
+  const lineStep = await nextLine.evaluate((element, currentIndex) => {
+    const current = document.querySelector(`.reading-line[data-line-index="${currentIndex}"]`)!;
+    return element.getBoundingClientRect().top - current.getBoundingClientRect().top;
+  }, activeIndex);
+  const targetBoundary = startingBoundary + lineStep;
+  await page.keyboard.press('Space');
   await page.keyboard.press('ArrowDown');
-  await expect(page.locator(`.reading-line[data-line-index="${activeIndex + 1}"]`)).toHaveClass(/active/);
-  await expect(finishedLine).toHaveCSS('transition-delay', '0.28s');
-  await expect.poll(() => curtain.evaluate((element) => element.getBoundingClientRect().bottom))
-    .toBeGreaterThan(startingBoundary + 5);
+  await expect(page.locator('.reader-shell')).toHaveClass(/window-traveling/);
+  await expect(activeLine).toHaveClass(/active/);
+
+  await expect.poll(() => curtain.evaluate((element) => element.getAnimations()[0]?.currentTime ?? 0))
+    .toBeGreaterThan(40);
+  const linearityError = await curtain.evaluate((element, bounds) => {
+    const animation = element.getAnimations()[0];
+    const timing = animation.effect?.getComputedTiming();
+    const duration = Number(timing?.duration ?? 0);
+    const temporalProgress = Number(animation.currentTime ?? 0) / duration;
+    const position = element.getBoundingClientRect().bottom;
+    const spatialProgress = (position - bounds.start) / (bounds.end - bounds.start);
+    return Math.abs(spatialProgress - temporalProgress);
+  }, { start: startingBoundary, end: targetBoundary });
+  expect(linearityError).toBeLessThan(0.08);
+
+  // Pausing during travel freezes the same animation; resuming completes it
+  // before the semantic active line and its next countdown advance.
+  await page.keyboard.press('Space');
+  await expect(page.locator('.reader-shell')).toHaveClass(/timer-paused/);
+  await expect.poll(() => curtain.evaluate((element) => element.getAnimations()[0]?.playState))
+    .toBe('paused');
+  const heldBoundary = await curtain.evaluate((element) => element.getBoundingClientRect().bottom);
+  await page.screenshot({ path: testInfo.outputPath('reader-window-mid-travel.png'), fullPage: true });
+  await page.waitForTimeout(180);
+  expect(await curtain.evaluate((element) => element.getBoundingClientRect().bottom)).toBeCloseTo(heldBoundary, 0);
+  await page.keyboard.press('Space');
+  await expect(nextLine).toHaveClass(/active/);
+  await expect(page.locator('.reader-shell')).not.toHaveClass(/window-traveling/);
+  expect(Math.abs(await curtain.evaluate((element) => element.getBoundingClientRect().bottom) - targetBoundary))
+    .toBeLessThanOrEqual(5);
 });
 
 test('a reading line stays within the comfortable measure', async ({ page }, testInfo) => {

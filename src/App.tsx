@@ -56,6 +56,7 @@ import type { ScoreBreakdown, SpeedTier } from './lib/game';
 import { SAMPLE_ARTICLE, countWords, fallbackWrap, roundExcerpt, wrapParagraphs } from './lib/text';
 import { loadPreferredTier, loadRounds, saveRound, savePreferredTier } from './lib/storage';
 import { readingScrollDelta } from './lib/viewport';
+import { linePaceSeconds, windowRange, windowTravelDuration } from './lib/readerMotion';
 import type { ArticleContent, GameRound, ReadingLine } from './types';
 
 type View = 'home' | 'rolling' | 'bet' | 'reader' | 'round' | 'progress' | 'loading';
@@ -626,21 +627,29 @@ function Reader({
   const [curtainHeight, setCurtainHeight] = useState(0);
   const [futureCurtainTop, setFutureCurtainTop] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
+  const [travelTarget, setTravelTarget] = useState<number | null>(null);
   const [documentPaused, setDocumentPaused] = useState(() => document.hidden);
   const [userPaused, setUserPaused] = useState(false);
   const activeElement = useRef<HTMLButtonElement>(null);
   const visibleEndElement = useRef<HTMLButtonElement>(null);
+  const lineElements = useRef<Array<HTMLButtonElement | null>>([]);
+  const pastCurtainElement = useRef<HTMLDivElement>(null);
+  const futureCurtainElement = useRef<HTMLDivElement>(null);
+  const progressMarkerElement = useRef<HTMLDivElement>(null);
+  const apertureAnimations = useRef<Animation[]>([]);
+  const apertureFrame = useRef(0);
   const readerStage = useRef<HTMLDivElement>(null);
   const finished = useRef(false);
   const activeIndex = findActiveLine(lines, activeWord);
-  const visibleEndIndex = Math.min(activeIndex + 2, Math.max(0, lines.length - 1));
+  const range = windowRange(activeIndex, lines.length, travelTarget);
+  const visibleEndIndex = range.accessibleEnd;
   const activeLine = lines[activeIndex];
   const previousActiveIndex = useRef<number | null>(null);
   const pausedAt = useRef<number | null>(null);
   const pausedDuration = useRef(0);
   const totalWords = countWords(article.paragraphs);
   const tier = tierForWpm(committedWpm);
-  const lineDuration = activeLine ? clamp((activeLine.text.split(/\s+/).length / committedWpm) * 60, 0.9, 12) : 2;
+  const lineDuration = activeLine ? linePaceSeconds(activeLine.text, committedWpm) : 2;
   const progress = lines.length > 1 ? Math.round((activeIndex / (lines.length - 1)) * 100) : 0;
   const wordsLeft = Math.max(0, totalWords - (activeLine?.startWord ?? 0));
 
@@ -694,10 +703,85 @@ function Reader({
     setTimerRevision((value) => value + 1);
   }, []);
 
+  const travelToLine = useCallback((requestedIndex: number, source: 'auto' | 'manual') => {
+    if (travelTarget !== null || lines.length === 0) return;
+    const nextIndex = clamp(requestedIndex, 0, lines.length - 1);
+    if (nextIndex === activeIndex) {
+      if (source === 'manual') setTimerRevision((value) => value + 1);
+      return;
+    }
+
+    const stage = readerStage.current;
+    const currentStart = lineElements.current[activeIndex];
+    const targetStart = lineElements.current[nextIndex];
+    const currentEnd = lineElements.current[windowRange(activeIndex, lines.length, null).accessibleEnd];
+    const targetEnd = lineElements.current[windowRange(nextIndex, lines.length, null).accessibleEnd];
+    const pastCurtain = pastCurtainElement.current;
+    const futureCurtain = futureCurtainElement.current;
+    const marker = progressMarkerElement.current;
+    if (!stage || !currentStart || !targetStart || !currentEnd || !targetEnd || !pastCurtain || !futureCurtain || !marker) {
+      selectLine(lines[nextIndex].startWord);
+      return;
+    }
+
+    const stageTop = stage.getBoundingClientRect().top;
+    const fromPast = Math.max(0, currentStart.getBoundingClientRect().top - stageTop);
+    const toPast = Math.max(0, targetStart.getBoundingClientRect().top - stageTop);
+    const fromFuture = Math.max(0, currentEnd.getBoundingClientRect().bottom - stageTop);
+    const toFuture = Math.max(0, targetEnd.getBoundingClientRect().bottom - stageTop);
+    const pastTransform = (position: number) => `translateY(calc(-100% + ${position}px))`;
+    const markerTransform = (position: number) => `translate(-50%, calc(-100% + ${position}px))`;
+    const futureTransform = (position: number) => `translateY(${position}px)`;
+    const duration = windowTravelDuration(activeIndex, nextIndex, prefersReducedMotion());
+
+    setTravelTarget(nextIndex);
+    const settle = () => {
+      pastCurtain.style.transform = pastTransform(toPast);
+      futureCurtain.style.transform = futureTransform(toFuture);
+      marker.style.transform = markerTransform(toPast);
+      apertureAnimations.current.forEach((animation) => animation.cancel());
+      apertureAnimations.current = [];
+      setCurtainHeight(toPast);
+      setFutureCurtainTop(toFuture);
+      setTravelTarget(null);
+      selectLine(lines[nextIndex].startWord);
+    };
+
+    if (duration === 0) {
+      settle();
+      return;
+    }
+
+    apertureFrame.current = requestAnimationFrame(() => {
+      apertureFrame.current = 0;
+      const options: KeyframeAnimationOptions = { duration, easing: 'linear', fill: 'forwards' };
+      const animations = [
+        pastCurtain.animate([
+          { transform: pastTransform(fromPast) },
+          { transform: pastTransform(toPast) },
+        ], options),
+        futureCurtain.animate([
+          { transform: futureTransform(fromFuture) },
+          { transform: futureTransform(toFuture) },
+        ], options),
+        marker.animate([
+          { transform: markerTransform(fromPast) },
+          { transform: markerTransform(toPast) },
+        ], options),
+      ];
+      apertureAnimations.current = animations;
+      void Promise.all(animations.map((animation) => animation.finished)).then(settle).catch(() => undefined);
+    });
+  }, [activeIndex, lines, selectLine, travelTarget]);
+
   const moveLine = useCallback((delta: number) => {
-    const next = clamp(activeIndex + delta, 0, Math.max(0, lines.length - 1));
-    if (lines[next]) selectLine(lines[next].startWord);
-  }, [activeIndex, lines, selectLine]);
+    travelToLine(activeIndex + delta, 'manual');
+  }, [activeIndex, travelToLine]);
+
+  useEffect(() => () => {
+    cancelAnimationFrame(apertureFrame.current);
+    apertureAnimations.current.forEach((animation) => animation.cancel());
+  }, []);
 
   const finish = useCallback(() => {
     if (finished.current) return;
@@ -731,6 +815,7 @@ function Reader({
   useEffect(() => {
     if (clockStopped) {
       if (pausedAt.current === null) pausedAt.current = Date.now();
+      apertureAnimations.current.forEach((animation) => animation.pause());
       return;
     }
     if (pausedAt.current !== null) {
@@ -738,18 +823,19 @@ function Reader({
       pausedAt.current = null;
       setTimerRevision((value) => value + 1);
     }
+    apertureAnimations.current.forEach((animation) => animation.play());
   }, [clockStopped]);
 
   const togglePause = useCallback(() => setUserPaused((value) => !value), []);
 
   useEffect(() => {
-    if (!activeLine || clockStopped) return;
+    if (!activeLine || clockStopped || travelTarget !== null) return;
     const timer = window.setTimeout(() => {
       if (activeIndex === lines.length - 1) finish();
-      else moveLine(1);
+      else travelToLine(activeIndex + 1, 'auto');
     }, lineDuration * 1_000);
     return () => window.clearTimeout(timer);
-  }, [activeIndex, activeLine, clockStopped, finish, lineDuration, lines.length, moveLine, timerRevision]);
+  }, [activeIndex, activeLine, clockStopped, finish, lineDuration, lines.length, timerRevision, travelTarget, travelToLine]);
 
   useEffect(() => {
     const handleKeys = (event: KeyboardEvent) => {
@@ -782,7 +868,7 @@ function Reader({
 
   return (
     <div
-      className={`reader-shell${clockStopped ? ' timer-paused' : ''}`}
+      className={`reader-shell${clockStopped ? ' timer-paused' : ''}${travelTarget !== null ? ' window-traveling' : ''}`}
       style={{ '--tier-color': tierColorVar(tier) } as CSSProperties}
     >
       <aside className="reader-utility">
@@ -805,13 +891,13 @@ function Reader({
           <p><b>{progress}%</b><span>{formatClock(estimatedSeconds(wordsLeft, committedWpm))} left</span></p>
         </div>
         <div className="desktop-reader-controls">
-          <ReaderControl label="Previous" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0} />
+          <ReaderControl label="Previous" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0 || travelTarget !== null} />
           <button className="reader-control pause-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
             <PauseIcon paused={userPaused} />
             <span>{userPaused ? 'Resume' : 'Pause'}</span>
             <kbd>Space</kbd>
           </button>
-          <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="↓" direction="down" onClick={nextAction} />
+          <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="↓" direction="down" onClick={nextAction} disabled={travelTarget !== null} />
         </div>
         <div className="reader-utility-footer">
           <button className="quiet-button" type="button" onClick={onAbandon}>Quit</button>
@@ -830,11 +916,13 @@ function Reader({
         <div className="reader-stage" ref={readerStage}>
           <div
             className="reading-curtain"
+            ref={pastCurtainElement}
             style={{ transform: `translateY(calc(-100% + ${curtainHeight}px))` }}
             aria-hidden="true"
           />
           <div
             className="reading-progress-marker"
+            ref={progressMarkerElement}
             style={{ transform: `translate(-50%, calc(-100% + ${curtainHeight}px))` }}
             role="progressbar"
             aria-label="Article progress"
@@ -846,24 +934,27 @@ function Reader({
           </div>
           <div
             className="reading-future-curtain"
+            ref={futureCurtainElement}
             style={{ transform: `translateY(${futureCurtainTop}px)` }}
             aria-hidden="true"
           />
           <div className="reader-copy" ref={copyRef}>
             {lines.map((line, index) => {
               const active = index === activeIndex;
-              const visible = index >= activeIndex && index <= visibleEndIndex;
+              const visible = index >= range.accessibleStart && index <= range.accessibleEnd;
+              const visuallyVisible = index >= range.visualStart && index <= range.visualEnd;
               return (
                 <button
                   key={line.id}
                   ref={(element) => {
+                    lineElements.current[index] = element;
                     if (active) activeElement.current = element;
                     if (index === visibleEndIndex) visibleEndElement.current = element;
                   }}
                   type="button"
                   data-line-index={index}
-                  className={`reading-line${active ? ' active' : ''}${visible ? ' window-visible' : ''}${line.paragraphStart ? ' paragraph-start' : ''}`}
-                  onClick={() => selectLine(line.startWord)}
+                  className={`reading-line${active ? ' active' : ''}${visuallyVisible ? ' window-visible' : ''}${line.paragraphStart ? ' paragraph-start' : ''}`}
+                  onClick={() => travelToLine(index, 'manual')}
                   tabIndex={active && visible ? 0 : -1}
                   aria-hidden={!visible}
                   aria-current={active ? 'true' : undefined}
@@ -883,12 +974,12 @@ function Reader({
       </main>
 
       <div className="mobile-reader-controls" aria-label="Reading controls">
-        <ReaderControl label="Previous" keyLabel="" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0} />
+        <ReaderControl label="Previous" keyLabel="" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0 || travelTarget !== null} />
         <button className="reader-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
           <PauseIcon paused={userPaused} />
           <span>{userPaused ? 'Resume' : 'Pause'}</span>
         </button>
-        <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="" direction="down" onClick={nextAction} />
+        <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="" direction="down" onClick={nextAction} disabled={travelTarget !== null} />
       </div>
     </div>
   );

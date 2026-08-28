@@ -1474,11 +1474,6 @@ button:disabled {
   background-image: radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.05) 1px, transparent 0);
   background-size: 5px 5px;
   pointer-events: none;
-  /* The aperture dwells for the full line timer, then the physical shutter
-     travels to its next stop. Only the two occluding panels move; article
-     geometry remains fixed. */
-  transition-duration: 280ms;
-  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .reading-curtain {
@@ -1486,7 +1481,6 @@ button:disabled {
   height: 100%;
   border-bottom: 4px solid var(--keyline);
   box-shadow: 0 10px 22px -8px var(--shade);
-  transition-property: transform;
 }
 
 .reading-future-curtain {
@@ -1495,7 +1489,6 @@ button:disabled {
   border-top: 4px solid var(--keyline);
   box-shadow: 0 -10px 22px -8px var(--shade);
   pointer-events: auto;
-  transition-property: transform;
 }
 
 .reading-progress-marker {
@@ -1516,7 +1509,6 @@ button:disabled {
   font-variant-numeric: tabular-nums;
   color: var(--tier-on-screen);
   pointer-events: none;
-  transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .reading-progress-marker b {
@@ -1539,9 +1531,6 @@ button:disabled {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  /* When a line leaves the aperture, keep its ink for the exact duration of
-     the shutter travel so it is covered physically instead of blinking out. */
-  transition: color 0ms linear 280ms;
 }
 
 .reading-line.paragraph-start:not(:first-child) {
@@ -1550,7 +1539,6 @@ button:disabled {
 
 .reading-line.window-visible:not(.active) {
   color: color-mix(in srgb, var(--screen-ink) 68%, var(--screen));
-  transition-delay: 0ms;
 }
 
 .reading-line.window-visible:hover:not(.active) {
@@ -1559,7 +1547,6 @@ button:disabled {
 
 .reading-line.active {
   color: var(--screen-ink);
-  transition-delay: 0ms;
 }
 
 /* The live boundary, carrying the tier's own colour onto the screen edge. */
