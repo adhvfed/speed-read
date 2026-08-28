@@ -828,8 +828,17 @@ function Reader({
           <span className="mobile-status-clock">{formatClock(estimatedSeconds(wordsLeft, committedWpm))}</span>
         </div>
         <div className="reader-stage" ref={readerStage}>
-          <div className="reading-curtain" style={{ height: curtainHeight }} aria-hidden="true">
-            <span>{progress}% read</span>
+          <div className="reading-curtain" style={{ height: curtainHeight }} aria-hidden="true" />
+          <div
+            className="reading-progress-marker"
+            style={{ top: curtainHeight }}
+            role="progressbar"
+            aria-label="Article progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={progress}
+          >
+            <b>{progress}%</b><span>read</span>
           </div>
           <div className="reading-future-curtain" style={{ top: futureCurtainTop }} aria-hidden="true" />
           <div className="reader-copy" ref={copyRef}>

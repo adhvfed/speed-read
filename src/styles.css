@@ -849,10 +849,9 @@ button:disabled {
 /* --- Roll transition ------------------------------------------------------ */
 
 .roll-workspace {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  align-items: center;
-  gap: 40px;
+  place-items: center;
   min-height: 100vh;
   width: 100%;
   padding: 48px 40px;
@@ -860,11 +859,18 @@ button:disabled {
 }
 
 .roll-copy {
+  position: absolute;
+  right: 32px;
+  bottom: clamp(32px, 8vh, 80px);
+  left: 32px;
   display: grid;
   gap: 16px;
+  justify-items: center;
+  text-align: center;
 }
 
 .roll-copy h1 {
+  max-width: 18ch;
   margin: 0;
   font-size: clamp(2.25rem, 5.4vw, 4rem);
   font-weight: 900;
@@ -1483,17 +1489,33 @@ button:disabled {
   pointer-events: auto;
 }
 
-.reading-curtain > span {
+.reading-progress-marker {
   position: absolute;
-  right: 16px;
-  bottom: 10px;
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  width: min(100%, var(--reader-measure, 72ch));
+  padding: 0 0 10px;
+  transform: translate(-50%, -100%);
   font-family: var(--display);
   font-size: 0.6875rem;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
-  color: var(--tier-color);
+  color: var(--tier-on-screen);
+  pointer-events: none;
+}
+
+.reading-progress-marker b {
+  font-size: 0.875rem;
+  color: var(--screen-ink);
+}
+
+.reading-progress-marker span {
+  color: var(--screen-dim);
 }
 
 .reading-line {
@@ -2341,9 +2363,7 @@ button:disabled {
 
 @media (max-width: 1000px) {
   .roll-workspace {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: start;
-    gap: 32px;
+    place-items: center;
   }
 }
 
@@ -2526,10 +2546,6 @@ button:disabled {
     color: var(--tier-color);
   }
 
-  .reading-curtain > span {
-    display: none;
-  }
-
   .mobile-status-energy {
     flex: 1;
   }
@@ -2545,6 +2561,11 @@ button:disabled {
   .reader-copy {
     font-size: 1.0625rem;
     line-height: 1.58;
+  }
+
+  .reading-progress-marker {
+    width: calc(100% - 36px);
+    padding-bottom: 8px;
   }
 
   /* The boundary bar is the pace timer on a phone. Its trailing edge moves

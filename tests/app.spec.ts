@@ -31,6 +31,15 @@ const QUIZ = {
 async function rollToBetScreen(page: Page) {
   await page.locator('.roll-action').click();
   await expect(page.getByRole('main', { name: 'Rolling an article' })).toBeVisible();
+  const dieCenterOffset = await page.evaluate(() => {
+    const die = document.querySelector('.die-scene')!.getBoundingClientRect();
+    const workspace = document.querySelector('.roll-workspace')!.getBoundingClientRect();
+    return Math.max(
+      Math.abs(die.left + die.width / 2 - (workspace.left + workspace.width / 2)),
+      Math.abs(die.top + die.height / 2 - (workspace.top + workspace.height / 2)),
+    );
+  });
+  expect(dieCenterOffset).toBeLessThanOrEqual(1);
   await expect(page.locator('.bet-workspace')).toBeVisible({ timeout: 8_000 });
 }
 
@@ -38,6 +47,7 @@ async function playRound(page: Page) {
   await page.locator('.bet-start').click();
   await expect(page.locator('.reader-shell')).toBeVisible();
   await expect(page.locator('.reading-line.active')).toBeVisible();
+  await expect(page.getByRole('progressbar', { name: 'Article progress' })).toContainText('0%read');
   for (let index = 0; index < 200 && await page.locator('.article-end .primary-button').count() === 0; index += 1) {
     await page.keyboard.press('ArrowDown');
   }
@@ -182,11 +192,12 @@ test('space holds the boundary and escape abandons the round', async ({ page }) 
   expect(await page.evaluate(() => localStorage.getItem('wikispreed:rounds:v1'))).toBeNull();
 });
 
-test('the reading window stays covered and within a comfortable measure', async ({ page }) => {
+test('the reading window stays covered and within a comfortable measure', async ({ page }, testInfo) => {
   await page.goto('/?demo=reader');
   const active = page.locator('.reading-line.active');
   await expect(active).toBeVisible();
   await expect(page.locator('.reading-line.window-visible')).toHaveCount(3);
+  await expect(page.getByRole('progressbar', { name: 'Article progress' })).toBeVisible();
 
   expect(await page.evaluate(() => {
     const lines = [...document.querySelectorAll<HTMLElement>('.reading-line')];
@@ -205,6 +216,13 @@ test('the reading window stays covered and within a comfortable measure', async 
     const line = document.querySelector('.reading-line.active')!.getBoundingClientRect();
     return Math.abs(curtain.bottom - line.top);
   })).toBeLessThanOrEqual(5);
+
+  expect(await page.evaluate(() => {
+    const marker = document.querySelector('.reading-progress-marker')!.getBoundingClientRect();
+    const line = document.querySelector('.reading-line.active')!.getBoundingClientRect();
+    return Math.abs(marker.bottom - line.top);
+  })).toBeLessThanOrEqual(5);
+  await page.screenshot({ path: testInfo.outputPath('reader-progress.png'), fullPage: true });
 });
 
 test('manual reader scrolling remains under the player’s control', async ({ page }) => {
