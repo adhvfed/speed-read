@@ -2402,18 +2402,18 @@ button:disabled {
   }
 
   .tier-option {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
-      'lamp  name'
-      'heat  heat'
-      'wpm   mult'
-      'clock rec';
+      'lamp  name  name'
+      'heat  heat  heat'
+      'wpm   wpm   mult'
+      'clock clock rec';
     gap: 6px 10px;
     padding: 10px;
   }
 
   .tier-option .lamp { grid-area: lamp; }
-  .tier-name { grid-area: name; font-size: 0.9375rem; }
+  .tier-name { grid-area: name; min-width: 0; font-size: 0.9375rem; }
   .tier-heat { grid-area: heat; height: 7px; }
   .tier-wpm { grid-area: wpm; }
   .tier-wpm b { font-size: 1.25rem; }
@@ -2434,7 +2434,9 @@ button:disabled {
 
   .bet-start {
     flex: 1;
-    padding: 15px 20px;
+    gap: 9px;
+    padding: 15px 14px;
+    font-size: 1rem;
   }
 
   .reader-main {
