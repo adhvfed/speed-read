@@ -1002,10 +1002,18 @@ function RoundView({
     );
   }
 
+  const finishAnswering = (completedAnswers: Record<number, number>) => {
+    // The live quiz ends on its last question, but the answer key is a new
+    // reading pass and must always begin at question one.
+    setQuestionDirection('forward');
+    setQuestionIndex(0);
+    onSubmit(quiz.questions.map((_, index) => completedAnswers[index]));
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
+
   const submit = () => {
     if (answeredCount !== quiz.questions.length) return;
-    onSubmit(quiz.questions.map((_, index) => answers[index]));
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    finishAnswering(answers);
   };
 
   const showQuestion = (nextIndex: number) => {
@@ -1020,8 +1028,7 @@ function RoundView({
     setAnswerLocked(true);
     advanceTimer.current = window.setTimeout(() => {
       if (questionIndex === quiz.questions.length - 1) {
-        onSubmit(quiz.questions.map((_, index) => nextAnswers[index]));
-        window.scrollTo({ top: 0, behavior: 'auto' });
+        finishAnswering(nextAnswers);
       } else {
         setQuestionDirection('forward');
         focusNextQuestion.current = true;

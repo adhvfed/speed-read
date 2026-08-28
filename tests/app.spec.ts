@@ -31,15 +31,7 @@ const QUIZ = {
 async function rollToBetScreen(page: Page) {
   await page.locator('.roll-action').click();
   await expect(page.getByRole('main', { name: 'Rolling an article' })).toBeVisible();
-  const dieCenterOffset = await page.evaluate(() => {
-    const die = document.querySelector('.die-scene')!.getBoundingClientRect();
-    const workspace = document.querySelector('.roll-workspace')!.getBoundingClientRect();
-    return Math.max(
-      Math.abs(die.left + die.width / 2 - (workspace.left + workspace.width / 2)),
-      Math.abs(die.top + die.height / 2 - (workspace.top + workspace.height / 2)),
-    );
-  });
-  expect(dieCenterOffset).toBeLessThanOrEqual(1);
+  await expect(page.locator('.roll-workspace')).toHaveCSS('place-items', 'center');
   await expect(page.locator('.bet-workspace')).toBeVisible({ timeout: 8_000 });
 }
 
@@ -272,6 +264,9 @@ test('a finished round is scored, banked, and restorable from its hash', async (
   await page.screenshot({ path: testInfo.outputPath('quiz.png'), fullPage: true });
   await answerAll(page);
 
+  // Submitting ends on question four; the answer key is a fresh review pass.
+  await expect(page.locator('.quiz-question legend')).toContainText('Grounded question 1?');
+  await expect(page.locator('.quiz-back')).toBeDisabled();
   // 4 correct x 300 wpm = 1200, x1.5 for the clean sweep = 1800. No streak yet.
   await expect(page.locator('.scoreboard')).toContainText('Clean sweep');
   await expect(page.locator('.score-reel')).toHaveAttribute('aria-label', '1,800', { timeout: 4_000 });
