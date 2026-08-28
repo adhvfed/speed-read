@@ -1,20 +1,48 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   font-family: 'Atkinson Hyperlegible Next', Arial, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --cobalt: #0b63f6;
-  --cobalt-deep: #084bb8;
-  --curtain: #2b4055;
-  --shell: #eef3f6;
-  --utility: #f7f9fa;
-  --reading: #fffdfc;
-  --ink: #16222d;
+
+  /* The game runs on a dark ground so the reading field can be the one lit
+     surface in it. Reading at 750 wpm is measurably harder on dark, so the
+     article keeps paper-light semantics, scoped to .reader-main below. */
+  --shell: #0d1016;
+  --utility: #161b23;
+  --raised: #1e2532;
+  --curtain: #0f141c;
+  --ink: #eef2f7;
+  --muted: #8a94a3;
+  --rule: #2b3442;
+
+  --cobalt: #4488ff;
+  --cobalt-deep: #2f6fe0;
+  --cobalt-dim: #1b2942;
+
+  /* Text on a saturated action. */
+  --reading: #ffffff;
+  --paper: #fffdfc;
+  --paper-ink: #14202b;
+
+  --error: #ff6b6b;
+  --success: #3ddc97;
+
+  /* The speed ladder is a risk ladder, so it is coloured like one. */
+  --tier-cruise: #3ddc97;
+  --tier-brisk: #35d0d6;
+  --tier-quick: #4488ff;
+  --tier-sprint: #f5c451;
+  --tier-blitz: #ff9645;
+  --tier-reckless: #ff5d73;
+
+  --mobile-dock-height: 76px;
+}
+
+/* The article keeps light-on-paper semantics inside the dark shell. */
+.reader-main {
+  --ink: var(--paper-ink);
   --muted: #5d6d7c;
   --rule: #d8e0e6;
-  --error: #a83c35;
-  --success: #2e7052;
-  --mobile-dock-height: 76px;
 }
 
 * {
@@ -63,8 +91,8 @@ button:disabled {
 }
 
 ::selection {
-  color: var(--reading);
-  background: var(--cobalt-deep);
+  color: var(--shell);
+  background: var(--cobalt);
 }
 
 .icon {
@@ -140,9 +168,9 @@ button:disabled {
 }
 
 .primary-button:disabled {
-  border-color: #9da8af;
-  background: #9da8af;
-  color: #f8fafb;
+  border-color: var(--rule);
+  background: var(--raised);
+  color: #667283;
 }
 
 .quiet-button {
@@ -153,7 +181,7 @@ button:disabled {
 
 .quiet-button:hover {
   border-color: var(--rule);
-  background: var(--shell);
+  background: var(--raised);
 }
 
 .section-label,
@@ -242,16 +270,16 @@ button:disabled {
 .workspace {
   min-width: 0;
   min-height: 100vh;
-  background: var(--reading);
+  background: var(--shell);
 }
 
 kbd {
   min-width: 24px;
   padding: 2px 5px;
   border: 1px solid var(--rule);
-  border-radius: 2px;
-  background: var(--utility);
-  color: var(--ink);
+  border-radius: 3px;
+  background: var(--raised);
+  color: var(--muted);
   font-family: inherit;
   font-size: 0.8125rem;
   font-weight: 650;
@@ -403,7 +431,7 @@ kbd {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
-  background: var(--reading);
+  background: var(--curtain);
 }
 
 .reader-utility {
@@ -488,8 +516,8 @@ kbd {
 }
 
 .reader-control:hover:not(:disabled) {
-  background: var(--shell);
-  color: var(--cobalt-deep);
+  background: var(--raised);
+  color: var(--cobalt);
 }
 
 .reader-control[aria-pressed='true'] {
@@ -498,11 +526,11 @@ kbd {
 }
 
 .reader-control:disabled {
-  color: #9da8af;
+  color: #5b6675;
 }
 
 .reader-control:disabled kbd {
-  color: #aab3ba;
+  color: #4d5766;
 }
 
 .reader-utility-footer {
@@ -529,7 +557,7 @@ kbd {
   min-width: 0;
   min-height: 100vh;
   overflow: clip;
-  background: var(--reading);
+  background: var(--paper);
 }
 
 .mobile-reader-status,
@@ -647,7 +675,7 @@ kbd {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: var(--reading);
+  background: var(--paper);
   transform: translateY(-50%);
 }
 
@@ -785,7 +813,7 @@ kbd {
 }
 
 .quiz-choices label:hover {
-  background: var(--utility);
+  background: var(--raised);
 }
 
 .quiz-choices input {
@@ -1349,7 +1377,7 @@ kbd {
   padding: 32px;
   border: 1px solid var(--rule);
   border-radius: 12px;
-  background: var(--utility);
+  background: var(--raised);
 }
 
 .standing-grid {
@@ -1516,7 +1544,7 @@ kbd {
 }
 
 .tier-option:hover {
-  background: var(--utility);
+  background: var(--raised);
 }
 
 .tier-option.selected {
@@ -1531,10 +1559,6 @@ kbd {
 .tier-name {
   font-size: 1.0625rem;
   font-weight: 650;
-}
-
-.tier-option.selected .tier-name {
-  color: var(--cobalt-deep);
 }
 
 .tier-wpm b {
@@ -1710,11 +1734,11 @@ kbd {
 }
 
 .scoreboard {
-  padding: 22px 24px;
+  padding: 24px 26px;
   border: 1px solid var(--rule);
   border-top: 3px solid var(--cobalt);
-  border-radius: 2px;
-  background: var(--utility);
+  border-radius: 4px;
+  background: var(--raised);
 }
 
 .scoreboard.failed {
@@ -1856,7 +1880,7 @@ kbd {
   padding: 28px 32px;
   border: 1px solid var(--rule);
   border-radius: 12px;
-  background: var(--utility);
+  background: var(--raised);
 }
 
 .curve {
@@ -1933,7 +1957,7 @@ kbd {
 }
 
 .curve-row.untested {
-  color: #98a3ac;
+  color: #626d7d;
 }
 
 /* An untested tier has no result, which a solid track would misread as zero. */
@@ -2185,7 +2209,7 @@ kbd {
     margin: 0 -20px -72px;
     padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--rule);
-    background: var(--reading);
+    background: var(--utility);
   }
 
   .bet-start,
@@ -2265,4 +2289,358 @@ kbd {
   .mobile-reader-controls {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Game energy
+   Dark ground, one lit reading field, and a speed ladder coloured as the risk
+   ladder it is. Scale and heat do the work; nothing here is decorative.
+   --------------------------------------------------------------------------- */
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Home */
+.home-workspace {
+  align-content: center;
+}
+
+.home-lead h1 {
+  max-width: none;
+  margin: 18px 0 34px;
+  font-size: clamp(3rem, 6.4vw, 5.75rem);
+  font-weight: 800;
+  line-height: 0.93;
+  letter-spacing: -0.045em;
+}
+
+.roll-action {
+  grid-template-columns: 44px minmax(0, 1fr) 26px;
+  width: min(100%, 400px);
+  min-height: 92px;
+  border-radius: 10px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--cobalt) 55%, transparent);
+  animation: roll-pulse 2.6s ease-out infinite;
+}
+
+.roll-action span {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.roll-action:hover {
+  animation: none;
+  box-shadow: 0 0 34px -6px color-mix(in srgb, var(--cobalt) 70%, transparent);
+}
+
+@keyframes roll-pulse {
+  0%, 70%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cobalt) 0%, transparent); }
+  35% { box-shadow: 0 0 30px -8px color-mix(in srgb, var(--cobalt) 75%, transparent); }
+}
+
+.home-rules ol {
+  counter-reset: rule;
+}
+
+.home-rules li {
+  padding: 15px 0 15px 44px;
+  font-size: 1.0625rem;
+}
+
+.home-rules li::before {
+  top: 15px;
+  color: var(--cobalt);
+  font-size: 0.75rem;
+}
+
+/* Standing numbers carry the weight of a scoreboard. */
+.standing-grid > div strong {
+  font-size: 2.375rem;
+  font-weight: 600;
+}
+
+.standing-grid > div span {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-streak b,
+.rank-bar-head strong {
+  color: var(--ink);
+}
+
+.rank-track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--rule);
+}
+
+.rank-track i {
+  border-radius: 5px;
+  box-shadow: 0 0 14px -2px color-mix(in srgb, var(--cobalt) 80%, transparent);
+}
+
+/* Speed ladder as a heat ramp */
+.tier-option {
+  border-left-width: 4px;
+  min-height: 66px;
+}
+
+.tier-option .tier-name {
+  color: var(--tier-color, var(--ink));
+  font-weight: 700;
+}
+
+.tier-option .tier-multiplier {
+  color: var(--tier-color, var(--cobalt));
+  font-size: 1.0625rem;
+  font-weight: 800;
+}
+
+.tier-option.selected {
+  border-left-color: var(--tier-color, var(--cobalt));
+  background: color-mix(in srgb, var(--tier-color, var(--cobalt)) 14%, transparent);
+}
+
+.tier-option.selected .tier-wpm b {
+  color: var(--tier-color, var(--ink));
+}
+
+.tier-wpm b {
+  font-size: 1.375rem;
+  font-weight: 700;
+}
+
+.tier-record.risky {
+  color: var(--error);
+}
+
+.bet-header h1 {
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.bet-ladder-head h2 {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.bet-ladder-head p b {
+  color: var(--ink);
+  font-size: 1.0625rem;
+  font-weight: 800;
+}
+
+.bet-start {
+  min-height: 60px;
+  border-radius: 8px;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+/* Reader: the paper is the only lit surface, so give it an edge. */
+.reader-utility {
+  background: var(--utility);
+  border-right-color: var(--rule);
+}
+
+.committed-speed strong {
+  font-size: 2.75rem;
+  font-weight: 600;
+}
+
+.reader-progress-track i {
+  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--cobalt) 80%, transparent);
+}
+
+.reading-curtain {
+  border-bottom-width: 3px;
+  box-shadow: 0 6px 26px -8px color-mix(in srgb, var(--cobalt) 60%, transparent);
+}
+
+/* Scoreboard: the round score is the loudest thing on the page. */
+.scoreboard .section-label {
+  color: var(--cobalt);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.scoreboard.passed {
+  border-top-color: var(--success);
+}
+
+.scoreboard.passed .section-label {
+  color: var(--success);
+}
+
+.score-total dd {
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: -0.05em;
+}
+
+.scoreboard.passed .score-total dd {
+  color: var(--success);
+}
+
+.scoreboard.failed .score-total dd {
+  color: var(--error);
+}
+
+.score-bonus dd {
+  color: var(--cobalt);
+  font-weight: 700;
+}
+
+.round-header h1,
+.progress-header h1 {
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.round-summary {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.round-summary em {
+  color: var(--tier-sprint);
+}
+
+/* Comprehension curve inherits the ladder's heat. */
+.curve-bar i {
+  background: var(--tier-color, var(--cobalt));
+}
+
+.curve-row .curve-tier {
+  color: var(--tier-color, var(--ink));
+  font-weight: 700;
+}
+
+.curve-row.untested .curve-tier {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.curve-row.ceiling .curve-tier::after {
+  color: var(--tier-color, var(--cobalt));
+}
+
+.round-result .clean {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+  color: var(--success);
+}
+
+.round-result .miss {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.round-score {
+  font-weight: 700;
+}
+
+.quiz-choices label.correct {
+  box-shadow: inset 3px 0 var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.quiz-choices label.incorrect {
+  box-shadow: inset 3px 0 var(--error);
+  background: color-mix(in srgb, var(--error) 10%, transparent);
+}
+
+.quiz-choices label > b {
+  color: var(--success);
+}
+
+.quiz-choices label.incorrect > b {
+  color: var(--error);
+}
+
+.empty-boundary i:nth-child(2) {
+  background: var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roll-action {
+    animation: none !important;
+  }
+}
+
+
+/* The stake button wears the heat of the tier it is staking. */
+.bet-actions {
+  --tier-color: var(--cobalt);
+}
+
+.bet-start {
+  border-color: var(--tier-color);
+  background: var(--tier-color);
+  color: #0d1016;
+}
+
+.bet-start:hover:not(:disabled) {
+  border-color: var(--tier-color);
+  background: color-mix(in srgb, var(--tier-color) 84%, #ffffff);
+}
+
+.bet-start:focus-visible {
+  outline-color: var(--tier-color);
+}
+
+/* Rows read edge to edge rather than trailing off into dead space. */
+.tier-record {
+  text-align: right;
+}
+
+.tier-option.selected {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tier-color) 30%, transparent);
+}
+
+/* The tier you bet colours the round you bet it on. */
+.reader-shell {
+  --tier-color: var(--cobalt);
+}
+
+.committed-speed em {
+  color: var(--tier-color);
+}
+
+.reader-progress-track i {
+  background: var(--tier-color);
+  box-shadow: 0 0 12px -2px color-mix(in srgb, var(--tier-color) 85%, transparent);
+}
+
+.reading-curtain {
+  border-bottom-color: var(--tier-color);
+  box-shadow: 0 6px 26px -8px color-mix(in srgb, var(--tier-color) 60%, transparent);
+}
+
+.countdown-meter {
+  stroke: var(--tier-color);
+}
+
+.reading-line.active::after {
+  background: color-mix(in srgb, var(--tier-color) 45%, transparent);
+}
+
+.reader-control[aria-pressed='true'] {
+  color: var(--tier-color);
 }

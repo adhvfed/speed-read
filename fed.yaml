@@ -41,5 +41,33 @@ scripts:
     environment:
       APP_URL: "http://127.0.0.1:{{APP_PORT}}"
     script: node scripts/smoke-quiz.mjs
+  research:wikipedia-cleaning:
+    environment:
+      OPENAI_API_KEY: "{{OPENAI_API_KEY}}"
+    script: node scripts/research-wikipedia-cleaning.mjs
+  research:wikipedia-cleaning-smoke:
+    environment:
+      OPENAI_API_KEY: "{{OPENAI_API_KEY}}"
+    script: node scripts/research-wikipedia-cleaning.mjs --per-mode=1
+  research:wikipedia-cleaner-review:
+    script: node scripts/evaluate-wikipedia-cleaner.ts --prepare-only --titles="Ada Lovelace|Aechmea|1993 Prince Edward Island general election|List of Nobel laureates in Physics|Anglo-Persian War"
+  research:wikipedia-cleaner-evaluation-smoke:
+    environment:
+      OPENAI_API_KEY: "{{OPENAI_API_KEY}}"
+    script: node scripts/evaluate-wikipedia-cleaner.ts --count=3
+  research:wikipedia-cleaner-evaluation-regression:
+    environment:
+      OPENAI_API_KEY: "{{OPENAI_API_KEY}}"
+    script: node scripts/evaluate-wikipedia-cleaner.ts --titles="Ras Al Khor Industrial Area|Beavis and Butt-Head Do U."
+  research:wikipedia-cleaner-production-review:
+    script: node scripts/evaluate-wikipedia-cleaner.ts --prepare-only --titles="Coton Sport FC de Garoua|Boni de Castellane|The End of Everything (EP)|Absent Friends (album)|Ruipukur|Naming of weapons in Middle-earth"
+  research:wikipedia-cleaner-production-regression:
+    environment:
+      OPENAI_API_KEY: "{{OPENAI_API_KEY}}"
+    script: node scripts/evaluate-wikipedia-cleaner.ts --titles="Coton Sport FC de Garoua|Boni de Castellane|The End of Everything (EP)|Absent Friends (album)|Ruipukur|Naming of weapons in Middle-earth"
+  research:wikipedia-cleaner-evaluation:
+    environment:
+      OPENAI_API_KEY: "{{OPENAI_API_KEY}}"
+    script: node scripts/evaluate-wikipedia-cleaner.ts --count=100
 
 entrypoint: web

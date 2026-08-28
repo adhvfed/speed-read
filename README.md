@@ -44,6 +44,47 @@ Run a real, structure-only quiz smoke test through the running service:
 fed run test:quiz
 ```
 
+### Extraction heuristic research
+
+Run the local Wikipedia-cleaning experiment through Service Federation:
+
+```sh
+fed run research:wikipedia-cleaning
+```
+
+The command samples two disjoint cohorts of 20 English Wikipedia articles. GPT-5.6 Luna labels the first cohort with `keep`, `delete`, or `reformulate` decisions and supplies bounded reformulations where needed; it labels the second cohort with only `keep` or `delete`. Article selection uses the Action API and analysis uses the canonical article HTML, matching the production extraction path. Wikipedia requests are serial, identified, compressed, and selection uses `maxlag`. Luna runs with strict structured output, no tools, and `store: false`.
+
+Results are written incrementally beneath `.research/wikipedia-cleaning/<timestamp>/` as two JSONL datasets, an error log, and a manifest. The directory is ignored by Git. Public article excerpts and Luna judgments are stored there; the linked API key exists only in the research process environment and is never written to the result files.
+
+For a two-article end-to-end check before a full run:
+
+```sh
+fed run research:wikipedia-cleaning-smoke
+```
+
+The follow-up cleaner evaluation is implemented in TypeScript. First prepare five deliberately varied articles for manual side-by-side inspection without making any Luna calls:
+
+```sh
+fed run research:wikipedia-cleaner-review
+```
+
+After reviewing those local `.original.txt`, `.cleaned.txt`, and `.audit.json` files, run a three-article Luna smoke evaluation and only then the 100-article evaluation:
+
+```sh
+fed run research:wikipedia-cleaner-evaluation-smoke
+fed run research:wikipedia-cleaner-evaluation
+```
+
+The production regression command reruns six articles that exposed the original duplicate-fragment, coordinate, blockquote, and inline-text-boundary failures:
+
+```sh
+fed run research:wikipedia-cleaner-production-regression
+```
+
+The evaluator imports the same deterministic extractor used by the Cloudflare `/api/extract` function, so it judges the exact continuous-prose output delivered to the game rather than a research-only approximation. It gives Luna bounded original and cleaned versions and requires strict JSON containing `agrees`, `explanation`, and concrete `disagreements` with corrections. It writes an aggregate `summary.json` and readable `summary.md` beneath `.research/wikipedia-cleaner-evaluation/<timestamp>/`.
+
+All Wikipedia and OpenAI calls are serial. Wikipedia requests use an identified client, gzip, GET, `maxlag=1`, and at least one second between requests. Both services receive at most two attempts for a transient request; repeated timeouts, throttling, or server errors halt the experiment instead of creating an unbounded retry/replacement loop. OpenAI `Retry-After` and remaining-capacity headers are honored, with a hard ceiling on automatic waits.
+
 Run the test and production-build checks:
 
 ```sh

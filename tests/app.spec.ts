@@ -29,7 +29,7 @@ const QUIZ = {
 };
 
 async function rollToBetScreen(page: Page) {
-  await page.getByRole('button', { name: /Roll (your first|next) article/ }).click();
+  await page.locator('.roll-action').click();
   await expect(page.getByRole('main', { name: 'Rolling an article' })).toBeVisible();
   await expect(page.locator('.bet-workspace')).toBeVisible({ timeout: 8_000 });
 }
@@ -71,8 +71,8 @@ test('the front door is one roll and the rules of a round', async ({ page }, tes
   const errors: string[] = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: /How fast can you read/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Roll your first article' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Read fast/ })).toBeVisible();
+  await expect(page.locator('.roll-action')).toHaveText(/Roll/);
   await expect(page.locator('.home-rules li')).toHaveCount(4);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
@@ -89,7 +89,7 @@ test('rolling uses one serial, identified Wikipedia request before extraction', 
   });
   await page.goto('/');
   const wikipediaRequest = page.waitForRequest((request) => request.url().includes('en.wikipedia.org/w/api.php'));
-  await page.getByRole('button', { name: 'Roll your first article' }).click();
+  await page.locator('.roll-action').click();
   const request = await wikipediaRequest;
   const url = new URL(request.url());
   expect(url.searchParams.get('generator')).toBe('random');
@@ -108,18 +108,18 @@ test('the bet screen quotes the stake and takes a speed from the keyboard', asyn
   await rollToBetScreen(page);
   await expect(page.locator('.bet-header h1')).toHaveText(WIKIPEDIA_ARTICLE.title);
   await expect(page.locator('.tier-option')).toHaveCount(6);
-  await expect(page.locator('.bet-start')).toHaveText('Start at 300 wpm');
+  await expect(page.locator('.bet-start')).toHaveText('Start · 300 wpm');
   await expect(page.locator('.bet-ladder-head')).toContainText('1,800');
 
   await page.keyboard.press('5');
   await expect(page.locator('.tier-option.selected .tier-name')).toHaveText('Blitz');
-  await expect(page.locator('.bet-start')).toHaveText('Start at 600 wpm');
+  await expect(page.locator('.bet-start')).toHaveText('Start · 600 wpm');
   await expect(page.locator('.bet-ladder-head')).toContainText('3,600');
   await page.screenshot({ path: testInfo.outputPath('bet.png'), fullPage: true });
 
   // The chosen tier survives a reroll, because it is the player's standing bet.
   await page.keyboard.press('2');
-  await expect(page.locator('.bet-start')).toHaveText('Start at 300 wpm');
+  await expect(page.locator('.bet-start')).toHaveText('Start · 300 wpm');
 });
 
 test('the committed speed is locked once the round starts', async ({ page }, testInfo) => {
@@ -161,7 +161,7 @@ test('space holds the boundary and escape abandons the round', async ({ page }) 
   await expect(active).not.toHaveText(held ?? '', { timeout: 4_000 });
 
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: /Roll (your first|next) article/ })).toBeVisible();
+  await expect(page.locator('.roll-action')).toBeVisible();
   // An abandoned round scores nothing.
   expect(await page.evaluate(() => localStorage.getItem('wikispreed:rounds:v1'))).toBeNull();
 });
@@ -225,7 +225,7 @@ test('a finished round is scored, banked, and restorable from its hash', async (
   // 4 correct x 300 wpm = 1200, x1.5 for the clean sweep = 1800. No streak yet.
   await expect(page.locator('.scoreboard')).toContainText('Clean sweep');
   await expect(page.locator('.score-total dd')).toHaveText('1,800', { timeout: 4_000 });
-  await expect(page.locator('.round-summary')).toContainText('Your streak is now 1');
+  await expect(page.locator('.round-summary')).toContainText('Streak 1');
   await expect(page.locator('.round-standing .rank-bar-head')).toContainText('1,800 pts');
   await page.screenshot({ path: testInfo.outputPath('scored.png'), fullPage: true });
 
@@ -278,7 +278,7 @@ test('progress reports the comprehension curve and the round log', async ({ page
 
 test('an unknown saved-article hash falls back to the front door', async ({ page }) => {
   await page.goto('/#round/abcdef0123456789');
-  await expect(page.getByRole('heading', { name: /How fast can you read/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Read fast/ })).toBeVisible();
   await expect.poll(() => page.evaluate(() => location.hash)).toBe('');
 });
 
@@ -313,7 +313,7 @@ test('rounds cannot be scored when recall checks are unavailable', async ({ page
   await page.unroute('**/api/quiz');
   await page.route('**/api/quiz', async (route) => route.fulfill({ json: { available: false } }));
   await page.goto('/');
-  await expect(page.getByText(/Recall checks are unavailable/)).toBeVisible();
+  await expect(page.getByText(/Scoring is offline/)).toBeVisible();
   await rollToBetScreen(page);
   await playRound(page);
   await expect(page.getByRole('heading', { name: 'This round could not be scored.' })).toBeVisible();

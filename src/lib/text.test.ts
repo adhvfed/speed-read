@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { cleanTitle, pastedTextToArticle, roundExcerpt, stripReferenceMarkers, usefulParagraphs, wrapParagraphs } from './text';
+import { cleanTitle, isEndMatterHeading, pastedTextToArticle, roundExcerpt, stripReferenceMarkers, usefulParagraphs, wrapParagraphs } from './text';
 
 describe('text preparation', () => {
+  it('recognizes combined source appendix headings without matching substantive headings', () => {
+    expect(isEndMatterHeading('External links and additional sources')).toBe(true);
+    expect(isEndMatterHeading('Additional sources and external links')).toBe(true);
+    expect(isEndMatterHeading('Sources of power')).toBe(false);
+    expect(isEndMatterHeading('Notes on design')).toBe(false);
+  });
+
   it('keeps article copy while dropping common page furniture', () => {
     expect(
       usefulParagraphs([

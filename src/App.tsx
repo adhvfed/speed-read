@@ -33,6 +33,7 @@ import {
   cleanSweepPayout,
   speedMultiplier,
   tierById,
+  tierColorVar,
   tierForWpm,
   tierRecords,
   totalPoints,
@@ -223,7 +224,6 @@ function Shell({
     <div className="app-shell">
       <aside className="utility-shell">
         <Wordmark onClick={() => onNavigate('home')} />
-        <p className="tagline">Bet a speed.<br />Read. Prove it.</p>
         <nav className="primary-nav" aria-label="Primary">
           <button className={view === 'home' ? 'active' : ''} type="button" onClick={() => onNavigate('home')}>
             Play
@@ -272,22 +272,16 @@ function Home({
   return (
     <main className="workspace home-workspace">
       <section className="home-lead">
-        <p className="section-label">Wikipedia speed-reading</p>
-        <h1>{returning ? 'Beat your ceiling.' : 'How fast can you read and still remember?'}</h1>
-        <p className="home-blurb">
-          Roll a random Wikipedia article and bet a reading speed before you start. The speed is
-          locked once the round begins. Four questions at the end decide whether the bet paid.
-        </p>
+        <p className="eyebrow">Wikipedia speed-reading</p>
+        <h1>Read fast.<br />Prove you got it.</h1>
         <button className="roll-action" type="button" onClick={onRoll}>
           <DiceIcon />
-          <span>{returning ? 'Roll next article' : 'Roll your first article'}</span>
+          <span>Roll</span>
           <Arrow direction="right" />
         </button>
         {rollError && <p className="form-error roll-error" role="alert">{rollError}</p>}
         {quizAvailable === false && (
-          <p className="home-notice" role="status">
-            Recall checks are unavailable right now, so rounds cannot be scored. You can still read.
-          </p>
+          <p className="home-notice" role="status">Scoring is offline. You can still read.</p>
         )}
       </section>
 
@@ -295,33 +289,26 @@ function Home({
         <section className="home-standing" aria-label="Your standing">
           <RankBar standing={standing} />
           <div className="standing-grid">
+            <div><span>Streak</span><strong>{standing.streak}</strong></div>
             <div>
-              <span>Streak</span>
-              <strong>{standing.streak}</strong>
+              <span>Best clean</span>
+              <strong>{standing.bestClean ?? '0'}</strong><small>wpm</small>
             </div>
-            <div>
-              <span>Best clean speed</span>
-              <strong>{standing.bestClean ?? 'none yet'}</strong>
-              {standing.bestClean !== null && <small>wpm</small>}
-            </div>
-            <div>
-              <span>Rounds</span>
-              <strong>{standing.rounds}</strong>
-            </div>
+            <div><span>Rounds</span><strong>{standing.rounds}</strong></div>
           </div>
-          <p className="standing-note">
-            {ceiling
-              ? `You hold ${ceiling.accuracy}% recall at ${ceiling.tier.name} (${ceiling.tier.wpm} wpm). Try the tier above it.`
-              : 'Play two rounds at the same speed to establish a reliable ceiling.'}
-          </p>
+          {ceiling && (
+            <p className="standing-note">
+              Reliable at <b>{ceiling.tier.name}</b>. Go faster.
+            </p>
+          )}
         </section>
       ) : (
         <section className="home-rules" aria-label="How a round works">
           <ol>
-            <li><b>Roll</b> a random article. No peeking at it first.</li>
-            <li><b>Bet</b> a speed. Faster pays more per correct answer.</li>
-            <li><b>Read</b> behind a boundary that advances on its own. No slowing down.</li>
-            <li><b>Answer</b> four questions. All four pays a bonus and extends your streak.</li>
+            <li><b>Roll</b> an article</li>
+            <li><b>Bet</b> a speed</li>
+            <li><b>Read</b> it, locked</li>
+            <li><b>Answer</b> four questions</li>
           </ol>
         </section>
       )}
@@ -334,9 +321,9 @@ function RollTransition({ title }: { title: string }) {
     <main className="workspace roll-workspace" aria-live="polite" aria-label="Rolling an article">
       <RollingDie />
       <div className="roll-copy">
-        <p className="section-label">Rolling</p>
+        <p className="eyebrow">Rolling</p>
         <h1>{title || 'Choosing an article…'}</h1>
-        <p>{title ? 'Clearing the page furniture now.' : 'One article. No peeking.'}</p>
+        <p>{title ? 'Cleaning it up…' : 'No peeking.'}</p>
       </div>
     </main>
   );
@@ -390,20 +377,17 @@ function BetScreen({
   return (
     <main className="workspace bet-workspace" aria-labelledby="bet-title">
       <header className="bet-header">
-        <p className="section-label">Your article</p>
+        <p className="eyebrow">Your article</p>
         <h1 id="bet-title" data-length={article.title.length > 44 ? 'long' : article.title.length > 24 ? 'medium' : 'short'}>
           {article.title}
         </h1>
-        <p className="bet-meta">{words.toLocaleString()} words · English Wikipedia</p>
+        <p className="bet-meta">{words.toLocaleString()} words</p>
       </header>
 
       <section className="bet-ladder" aria-label="Choose your speed">
         <div className="bet-ladder-head">
           <h2>Bet a speed</h2>
-          <p>
-            Locked once the round starts. Four correct at {selectedTier.name} pays{' '}
-            <b>{cleanSweepPayout(selectedTier.wpm).toLocaleString()}</b>.
-          </p>
+          <p>4/4 pays <b>{cleanSweepPayout(selectedTier.wpm).toLocaleString()}</b></p>
         </div>
         <ul>
           {SPEED_TIERS.map((tier, index) => {
@@ -416,6 +400,7 @@ function BetScreen({
                   type="button"
                   aria-pressed={selected}
                   className={`tier-option${selected ? ' selected' : ''}`}
+                  style={{ '--tier-color': tierColorVar(tier) } as CSSProperties}
                   onClick={() => onSelectTier(tier)}
                   onDoubleClick={onStart}
                 >
@@ -425,9 +410,7 @@ function BetScreen({
                   <span className="tier-multiplier">×{speedMultiplier(tier.wpm).toFixed(1)}</span>
                   <span className="tier-clock">{formatClock(estimatedSeconds(words, tier.wpm))}</span>
                   <span className={`tier-record${risky ? ' risky' : ''}`}>
-                    {record && record.rounds > 0
-                      ? `${record.accuracy}% over ${record.rounds} ${record.rounds === 1 ? 'round' : 'rounds'}`
-                      : 'untested'}
+                    {record && record.rounds > 0 ? `${record.accuracy}%` : 'new'}
                   </span>
                 </button>
               </li>
@@ -436,11 +419,11 @@ function BetScreen({
         </ul>
       </section>
 
-      <footer className="bet-actions">
+      <footer className="bet-actions" style={{ '--tier-color': tierColorVar(selectedTier) } as CSSProperties}>
         <button ref={startRef} className="primary-button bet-start" type="button" onClick={onStart}>
-          Start at {selectedTier.wpm} wpm
+          Start · {selectedTier.wpm} wpm
         </button>
-        <button className="quiet-button" type="button" onClick={onReroll}>Roll a different article</button>
+        <button className="quiet-button" type="button" onClick={onReroll}>Reroll</button>
       </footer>
     </main>
   );
@@ -735,7 +718,10 @@ function Reader({
   const nextAction = atEnd ? finish : () => moveLine(1);
 
   return (
-    <div className={`reader-shell${clockStopped ? ' timer-paused' : ''}`}>
+    <div
+      className={`reader-shell${clockStopped ? ' timer-paused' : ''}`}
+      style={{ '--tier-color': tierColorVar(tier) } as CSSProperties}
+    >
       <aside className="reader-utility">
         <Wordmark onClick={onAbandon} />
         <div className="reader-source">
@@ -747,7 +733,7 @@ function Reader({
           </h1>
         </div>
         <div className="committed-speed">
-          <span className="measurement-label">Locked at</span>
+          <span className="measurement-label">Locked</span>
           <strong>{committedWpm}</strong><small>wpm</small>
           <em>{tier.name} · ×{speedMultiplier(committedWpm).toFixed(1)}</em>
         </div>
@@ -767,8 +753,8 @@ function Reader({
           </button>
         </div>
         <div className="reader-utility-footer">
-          <button className="quiet-button" type="button" onClick={onAbandon}>Abandon round</button>
-          <span>{userPaused ? 'Paused' : 'Speed is locked for this round'}</span>
+          <button className="quiet-button" type="button" onClick={onAbandon}>Quit</button>
+          <span>{userPaused ? 'Paused' : 'Speed locked'}</span>
         </div>
       </aside>
 
@@ -862,9 +848,7 @@ function Scoreboard({ breakdown, wpm, correct, questions }: {
         </div>
       </dl>
       {!breakdown.passed && (
-        <p className="score-note">
-          {correct} of {questions} is below the three needed to pass, so the streak resets.
-        </p>
+        <p className="score-note">Under three of {questions}. Streak resets.</p>
       )}
     </div>
   );
@@ -949,14 +933,11 @@ function RoundView({
           <h1>{submitted ? 'Here’s what stayed.' : 'What stayed with you?'}</h1>
           {submitted ? (
             <p className="round-summary">
-              <b>{round.correct} of {round.questions}</b> on {round.title} at {round.committedWpm} wpm.
-              {' '}{round.passed
-                ? `Your streak is now ${round.streakBefore + 1}.`
-                : 'Streak reset.'}
-              {newBest && <em> New best clean speed.</em>}
+              {round.passed ? `Streak ${round.streakBefore + 1}` : 'Streak reset'}
+              {newBest && <em> · New best</em>}
             </p>
           ) : (
-            <p>Four questions from the article. Three correct passes the round.</p>
+            <p>Three of four to pass.</p>
           )}
         </div>
         {submitted && breakdown ? (
@@ -1015,7 +996,7 @@ function RoundView({
         ))}
 
         <footer className="quiz-footer">
-          <p>Questions generated from this article. Your scores stay in this browser.</p>
+          <p>Scores stay in this browser.</p>
           <div className="quiz-actions">
             {!submitted && (
               <button className="primary-button" type="submit" disabled={answeredCount !== quiz.questions.length}>
@@ -1053,7 +1034,7 @@ function Progress({
     <main className="workspace progress-workspace">
       <header className="progress-header">
         <div>
-          <p className="section-label">Progress</p>
+          <p className="eyebrow">Progress</p>
           <h1>{ordered.length === 0 ? 'Nothing played yet.' : 'Your speed record.'}</h1>
         </div>
         {ordered.length > 0 && (
@@ -1065,7 +1046,7 @@ function Progress({
         <section className="progress-empty">
           <span className="empty-boundary" aria-hidden="true"><i /><i /><i /></span>
           <h2>Your first round is one roll away.</h2>
-          <p>Play two rounds at the same speed and this page will show where your comprehension starts to break.</p>
+          <p>Play a couple of rounds and this shows where you break.</p>
           <button className="primary-button" type="button" onClick={onRoll}>Roll an article</button>
         </section>
       ) : (
@@ -1088,9 +1069,7 @@ function Progress({
             <header>
               <h2 id="curve-title">Comprehension curve</h2>
               <p>
-                {ceiling
-                  ? `Reliable through ${ceiling.tier.name} at ${ceiling.tier.wpm} wpm.`
-                  : 'Play a tier twice to make it count as reliable.'}
+                {ceiling ? `Reliable to ${ceiling.tier.name}` : 'Two rounds at a tier to count'}
               </p>
             </header>
             <div className="curve-table">
@@ -1100,6 +1079,7 @@ function Progress({
                   <div
                     className={`curve-row${record.rounds === 0 ? ' untested' : ''}${isCeiling ? ' ceiling' : ''}`}
                     key={record.tier.id}
+                    style={{ '--tier-color': tierColorVar(record.tier) } as CSSProperties}
                   >
                     <span className="curve-tier">{record.tier.name}</span>
                     <span className="curve-wpm">{record.tier.wpm}</span>
@@ -1109,8 +1089,8 @@ function Progress({
                     <strong>{record.accuracy === null ? 'n/a' : `${record.accuracy}%`}</strong>
                     <small>
                       {record.rounds === 0
-                        ? 'untested'
-                        : `${record.correct}/${record.questions} · ${record.rounds} ${record.rounds === 1 ? 'round' : 'rounds'}${record.cleanSweeps > 0 ? ` · ${record.cleanSweeps} clean` : ''}`}
+                        ? 'new'
+                        : `${record.correct}/${record.questions} · ${record.rounds}r${record.cleanSweeps > 0 ? ` · ${record.cleanSweeps} clean` : ''}`}
                     </small>
                   </div>
                 );

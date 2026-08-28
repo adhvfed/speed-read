@@ -17,7 +17,11 @@ const JUNK_PATTERNS = [
  * reaches them spends minutes advancing one bibliography entry at a time.
  */
 const END_MATTER_HEADING =
-  /^(references?|notes?( and references?)?|footnotes?|citations?|sources?|bibliography|further reading|external links?|see also|works cited|explanatory notes|general references|related pages|navigation menu)$/i;
+  /^(?:references?|notes?(?: and references?)?|footnotes?|citations?|sources?|bibliography|further reading|see also|works cited|explanatory notes|general references|related pages|navigation menu|external links?(?: and (?:additional )?sources?)?|(?:additional )?sources? and external links?)$/i;
+
+export function isEndMatterHeading(value: string): boolean {
+  return END_MATTER_HEADING.test(normalizeWhitespace(value));
+}
 
 /** A reference-list entry that survived without its container. */
 const ORPHAN_REFERENCE = /^[↑^]\s/;
@@ -85,7 +89,7 @@ export function usefulParagraphs(values: string[]): string[] {
   const result: string[] = [];
   for (const raw of values) {
     const text = stripReferenceMarkers(normalizeWhitespace(raw));
-    if (END_MATTER_HEADING.test(text)) break;
+    if (isEndMatterHeading(text)) break;
     if (ORPHAN_REFERENCE.test(text)) continue;
     const key = text.toLocaleLowerCase();
     if (!isUsefulParagraph(text) || !readsAsProseOrHeading(text) || seen.has(key)) continue;

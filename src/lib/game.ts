@@ -13,6 +13,11 @@ export interface SpeedTier {
   wpm: number;
 }
 
+/** The ladder is a risk ladder, so each tier carries a heat colour. */
+export function tierColorVar(tier: SpeedTier): string {
+  return `var(--tier-${tier.id})`;
+}
+
 /**
  * Discrete tiers rather than a continuous slider. Six buckets concentrate a
  * player's history enough that "how do I do at this speed" is answerable after
