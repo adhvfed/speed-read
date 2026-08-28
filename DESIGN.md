@@ -2,17 +2,25 @@
 name: wikispreed
 description: A Wikipedia speed-reading game where the player bets a reading speed and a recall check settles it.
 colors:
-  cobalt-signal: "#0B63F6"
-  cobalt-deep: "#084BB8"
-  curtain: "#2B4055"
-  shell: "#EEF3F6"
-  utility: "#F7F9FA"
+  cobalt-signal: "#4488FF"
+  cobalt-deep: "#2F6FE0"
+  ground: "#0D1016"
+  surface: "#161B23"
+  raised: "#1E2532"
+  curtain: "#0F141C"
   reading-field: "#FFFDFC"
-  ink: "#16222D"
-  muted-ink: "#5D6D7C"
-  rule: "#D8E0E6"
-  error: "#A83C35"
-  success: "#2E7052"
+  reading-ink: "#14202B"
+  ink: "#EEF2F7"
+  muted-ink: "#8A94A3"
+  rule: "#2B3442"
+  error: "#FF6B6B"
+  success: "#3DDC97"
+  tier-cruise: "#3DDC97"
+  tier-brisk: "#35D0D6"
+  tier-quick: "#4488FF"
+  tier-sprint: "#F5C451"
+  tier-blitz: "#FF9645"
+  tier-reckless: "#FF5D73"
 typography:
   display:
     fontFamily: "Atkinson Hyperlegible Next, Arial, sans-serif"
@@ -89,31 +97,55 @@ The game feel comes from scale, tabular numerals, a score that counts up, and th
 
 ## Colors
 
-The palette moves from daylight white through cool mineral neutrals to a deep blue curtain; clear cobalt is rare and operational.
+The game runs on a near-black ground so the reading field can be the one lit
+surface in it. Reading at 750 wpm is measurably harder on a dark background, so
+the article keeps paper-light semantics scoped to the reader; everything around
+it is dark. The contrast is the point: the reading window reads as a spotlight.
 
-### Primary
+### Ground
 
-- **Cobalt Signal** (#0B63F6): active boundary, focus, primary action, payout multipliers, progress fill, and the live countdown segment.
-- **Cobalt Deep** (#084BB8): hover and pressed states, and earned bonuses in a score tally.
+- **Ground** (#0D1016): the application field.
+- **Surface** (#161B23): utility column and docks.
+- **Raised** (#1E2532): standing panels, scoreboards, hovered rows.
+- **Curtain** (#0F141C): covers passed and future article text.
+- **Rule** (#2B3442): hairlines and empty tracks.
+- **Ink** (#EEF2F7) and **Muted Ink** (#8A94A3): type on the dark ground.
 
-### Neutral
+### Reading Field
 
-- **Mineral Curtain** (#2B4055): fully obscures passed text and never carries readable article copy.
-- **Cool Shell** (#EEF3F6): outer application ground and mobile control dock.
-- **Quiet Utility** (#F7F9FA): utility column, standing panels, and scoreboards.
-- **Reading White** (#FFFDFC): article and panel surfaces; deliberately cool, not book-paper cream.
-- **Ink** (#16222D): primary type and icons.
-- **Muted Ink** (#5D6D7C): secondary labels and metadata.
-- **Hairline Rule** (#D8E0E6): structural divisions and empty progress tracks.
-- **Success** (#2E7052) and **Error** (#A83C35): correct and incorrect answers, passed and failed rounds. Both are always paired with words, never used alone.
+- **Reading White** (#FFFDFC) with **Reading Ink** (#14202B). Scoped to the
+  reader, which redefines ink, muted, and rule back to paper values.
+
+### Signal
+
+- **Cobalt** (#4488FF): live edge, focus, primary action, progress. Brightened
+  from the old print-weight cobalt, which goes muddy on a dark ground.
+- **Success** (#3DDC97) and **Error** (#FF6B6B): passed and failed rounds,
+  correct and incorrect answers. Always paired with words, never colour alone.
+
+### The Heat Ladder
+
+The six speed tiers are a risk ladder, so they are coloured as one: Cruise
+green, Brisk cyan, Quick cobalt, Sprint amber, Blitz orange, Reckless red. The
+tier a player bets colours the stake button, the reading boundary, the
+countdown, the progress bar, and its own row in the comprehension curve. This
+is the only place in the system where colour is decorative-adjacent, and it
+earns its place by making risk legible before the bet is placed.
 
 ### Named Rules
 
-**The Live Edge Rule.** Cobalt marks only what the player can act on now, what they have earned, and how far they have come. It does not decorate inactive surfaces.
+**The Live Edge Rule.** Cobalt marks only what the player can act on now, what
+they have earned, and how far they have come.
 
-**The Roll Rule.** The die is the only playful symbol. It is geometric, cobalt, and purposeful, not a casino motif repeated across the interface.
+**The Heat Rule.** A tier colour appears only on things belonging to that tier.
+It never decorates a neutral surface.
 
-**The Honest Number Rule.** Every score on screen is arithmetic the player could redo by hand. No number is inflated for effect and no bonus appears that the tally does not explain.
+**The Honest Number Rule.** Every score on screen is arithmetic the player could
+redo by hand. No number is inflated for effect.
+
+**The Lazy Copy Rule.** Prefer the shortest phrasing that still carries the
+meaning. A game does not explain itself; it lets you press the button. Where a
+number can replace a sentence, use the number.
 
 ## Typography
 
