@@ -7,11 +7,12 @@ colors:
   cabinet-raised: "#431C86"
   keyline: "#0B0320"
   marquee-yellow: "#FFD119"
-  marquee-yellow-deep: "#B98C00"
+  marquee-yellow-deep: "#A97E00"
   pop-red: "#FF3355"
   go-green: "#39E36B"
   paint-white: "#FFF4E2"
   paint-lilac: "#C0A8EC"
+  paint-lilac-dim: "#9483C4"
   screen: "#F7F1E1"
   screen-ink: "#1B1206"
   screen-dim: "#736247"
@@ -24,7 +25,7 @@ colors:
   lamp-quick: "#4DA6FF"
   lamp-sprint: "#FFC01F"
   lamp-blitz: "#FF8320"
-  lamp-reckless: "#FF3B5C"
+  lamp-reckless: "#FF6076"
 typography:
   marquee:
     fontFamily: "Archivo Variable, Arial Black, sans-serif"
@@ -32,7 +33,7 @@ typography:
     fontWeight: 900
     fontStretch: "118%"
     lineHeight: 0.88
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.03em"
   title:
     fontFamily: "Archivo Variable, Arial Black, sans-serif"
     fontSize: "1.5rem"
@@ -90,9 +91,14 @@ rounded:
   round: "999px"
 spacing:
   hair: "4px"
+  tight: "6px"
   compact: "8px"
+  snug: "10px"
   control: "12px"
+  pad: "14px"
   group: "16px"
+  bay: "18px"
+  panel: "20px"
   section: "24px"
   region: "32px"
   field: "48px"
@@ -101,13 +107,13 @@ components:
     backgroundColor: "{colors.marquee-yellow}"
     textColor: "{colors.keyline}"
     rounded: "{rounded.button}"
-    padding: "16px 26px"
-    note: "Sits on a 5px solid keyline with a 6px hard drop of its own deep shade. Presses 6px down on active."
+    padding: "14px 24px"
+    note: "Sits on a 3px solid keyline with a 6px hard drop. Presses 6px down on active. Focus takes a 4px paint-white ring at 6px offset, because a yellow ring is invisible on a yellow face."
   button-quiet:
     backgroundColor: "transparent"
     textColor: "{colors.paint-white}"
     rounded: "{rounded.button}"
-    padding: "12px 16px"
+    padding: "11px 16px"
     note: "3px keyline border, no drop. Fills cabinet-raised on hover."
 ---
 
@@ -182,10 +188,15 @@ across the row.
 
 **The Lit Rule.** Colour at full intensity means live. A tier that is not
 selected, a lamp that is not earned, and a control that is not available are
-unlit, and unlit means dark cabinet paint, not a faded tint of the colour.
+unlit, and unlit means dark cabinet paint, not a faded tint of the colour. An
+unlit control still has to say what it is, so its label takes `paint-lilac-dim`,
+which is the dimmest violet that still clears 4.5:1 on a well.
 
 **The Yellow Rule.** Marquee yellow is the primary action and nothing else. It
-never decorates, never marks a heading, never fills a chart.
+never decorates, never marks a heading, never fills a chart, and it never lands
+on a number the player cannot press. Rank progress, quiz position, streak counts
+and bonus figures all light in paint white instead. There is at most one yellow
+thing on any screen.
 
 **The Quiet Screen Rule.** Nothing in the cabinet's vocabulary crosses onto the
 reading screen: no keyline shadows on article text, no lamps in the margin, no
@@ -295,10 +306,13 @@ disappearing, because the boundary advances regardless.
 
 ### The HUD
 
-The reader's top strip is a game HUD: locked speed as a readout, a segmented
-energy bar for progress, and the clock remaining. Segments, not a smooth fill,
-because a segmented bar is readable at a glance and a smooth one is a progress
-ring in disguise.
+The reader states the same four things at both sizes: locked speed as a readout,
+its tier, a segmented energy bar for progress, and the clock remaining. On
+desktop that is the left rail; on a phone it is a top strip, which re-enters
+cabinet scope explicitly because it sits on cabinet paint inside a region that
+has already swapped in the paper palette. Segments, not a smooth fill, because a
+segmented bar is readable at a glance and a smooth one is a progress ring in
+disguise. Progress is stated once per screen, never twice.
 
 ### The Score Reel
 

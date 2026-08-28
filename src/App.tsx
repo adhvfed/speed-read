@@ -10,9 +10,10 @@
  * STORY: Hit the big yellow button, a die tumbles, an unknown article lands,
  * light up a speed you might not survive, read behind the machine's own
  * shutter, then four buzzer pads settle the bet and the reel counts the score.
- * FIRST VIEWPORT: Marquee READ FAST at 5rem with a keyline drop, one 168px
- * round yellow arcade button under it reading ROLL, the instruction plate lit
- * alongside. Cabinet paint fills the field edge to edge.
+ * FIRST VIEWPORT: No nav rail — a title screen is a marquee and one button.
+ * READ FAST at 6rem inside a lit marquee housing with a strip of bulbs along
+ * its top edge, one 168px round yellow arcade button under it reading ROLL,
+ * and the silkscreened instruction panel filling the field alongside.
  * FORM: Arcade cabinet, candidate 4 of the grounded list, taken on the user's
  * explicit steer after the roll's assignment (seed c5692c4a) was rejected for
  * reading as printed matter. Staging: permissioned disclosure — the article is
