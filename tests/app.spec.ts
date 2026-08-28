@@ -83,6 +83,15 @@ test('the front door is one roll and the rules of a round', async ({ page }, tes
   await expect(page.locator('.home-rules li')).toHaveCount(4);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
+  if (testInfo.project.name === 'mobile') {
+    expect(await page.evaluate(() => {
+      const lead = document.querySelector('.home-lead')!.getBoundingClientRect();
+      const marquee = document.querySelector('.marquee-housing')!.getBoundingClientRect();
+      const roll = document.querySelector('.roll-action')!.getBoundingClientRect();
+      const center = (bounds: DOMRect) => bounds.left + bounds.width / 2;
+      return Math.max(Math.abs(center(lead) - center(marquee)), Math.abs(center(lead) - center(roll)));
+    })).toBeLessThanOrEqual(1);
+  }
   expect(errors).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('home.png'), fullPage: true });
 });

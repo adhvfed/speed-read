@@ -18,28 +18,29 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 
-  /* Cabinet paint. The machine's body, flat, never gradient-lit. */
-  --cab: #301063;
-  --cab-deep: #190638;
-  --cab-raised: #431c86;
-  --cab-well: #12042c;
-  --keyline: #0b0320;
+  /* Cabinet paint. Safety orange makes the whole game feel physical, loud,
+     and fast; aubergine keylines keep the heat from flattening the UI. */
+  --cab: #ef5b21;
+  --cab-deep: #9f2f18;
+  --cab-raised: #ff793d;
+  --cab-well: #321126;
+  --keyline: #210817;
 
   --ink: #fff4e2;
-  --muted: #c0a8ec;
+  --muted: #ffd2b8;
   /* Unlit, but still legible: a disabled control has to say what it is. */
-  --muted-dim: #9483c4;
-  --rule: #4d2494;
+  --muted-dim: #f2ad88;
+  --rule: #c33f20;
 
   /* The screen behind the bezel. */
-  --screen: #f7f1e1;
-  --screen-ink: #1b1206;
-  --screen-dim: #736247;
-  --screen-rule: #d9ccae;
+  --screen: #fff4df;
+  --screen-ink: #28100b;
+  --screen-dim: #765744;
+  --screen-rule: #e3c7a5;
 
   /* Marquee yellow is the primary action and nothing else. */
-  --hot: #ffd119;
-  --hot-deep: #a97e00;
+  --hot: #ffe135;
+  --hot-deep: #b78100;
 
   --error: #ff3355;
   --error-soft: #ff8fa3;
@@ -85,11 +86,12 @@ body {
   min-height: 100vh;
   color: var(--ink);
   background: var(--cab);
-  /* Cabinet paint is a flat field, so the only variation is the faint
-     silkscreen halftone that a real painted panel actually has. */
+  /* A tight two-ink registration pattern gives the orange cabinet the feel
+     of screen-printed metal without competing with the controls. */
   background-image:
-    radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.045) 1px, transparent 0);
-  background-size: 5px 5px;
+    linear-gradient(135deg, transparent 0 46%, rgb(33 8 23 / 0.055) 46% 54%, transparent 54%),
+    radial-gradient(circle at 1px 1px, rgb(255 244 226 / 0.12) 1px, transparent 0);
+  background-size: 28px 28px, 5px 5px;
 }
 
 button,
@@ -2377,6 +2379,15 @@ button:disabled {
 
   .home-lead {
     gap: 16px;
+    width: 100%;
+    padding-inline: 0;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .home-lead .marquee-housing {
+    width: min(100%, 360px);
+    justify-items: center;
   }
 
   .roll-action {
