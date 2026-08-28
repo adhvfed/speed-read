@@ -115,13 +115,13 @@ function RollingDie() {
 
 function Wordmark({ onClick }: { onClick?: () => void }) {
   return (
-    <button className="wordmark" onClick={onClick} type="button" aria-label="speed-read home">
+    <button className="wordmark" onClick={onClick} type="button" aria-label="WikiSpreed home">
       <span className="wordmark-mark" aria-hidden="true">
         <i />
         <i />
         <i />
       </span>
-      <span>speed-read</span>
+      <span>WikiSpreed</span>
     </button>
   );
 }

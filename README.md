@@ -1,4 +1,4 @@
-# speed-read
+# WikiSpreed
 
 A Wikipedia roulette for speed-reading practice. Roll a random English Wikipedia article, read it behind a stable line-by-line boundary, take a short recall quiz, see your score, and roll again. A public link or pasted text can still be used instead.
 
@@ -55,7 +55,7 @@ The repository ignores `.env*` and `.dev.vars*`. Do not add an API key to either
 
 ## Deployment
 
-The Cloudflare Pages project is named `speed-read`; its intended custom domain is `read.adhv.me`.
+The Cloudflare Pages project is named `speed-read`; its custom domain is `wikispreed.com`.
 
 Use a separately provisioned production key, not the Service Federation development vault. Add it as an encrypted Pages secret in **Workers & Pages → speed-read → Settings → Variables and Secrets**, or enter it interactively when Wrangler prompts:
 
@@ -69,6 +69,6 @@ Then deploy:
 npm run deploy
 ```
 
-The deploy script publishes the private rate-limit Worker before the Pages project. Cloudflare preserves encrypted secrets across code deployments; the key can only be removed explicitly. If the production secret is absent or removed, the rest of speed-read continues to work and the quiz path stays hidden.
+The deploy script publishes the private rate-limit Worker before the Pages project. Cloudflare preserves encrypted secrets across code deployments; the key can only be removed explicitly. If the production secret is absent or removed, the rest of WikiSpreed continues to work and the quiz path stays hidden.
 
 The companion OpenTofu declaration lives in `~/Projects/static-sites-infra` so the Pages project and DNS mapping can be managed with the other static sites.

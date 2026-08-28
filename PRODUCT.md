@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Speed-read is for curious people who want a playful daily way to discover Wikipedia, practice reading faster, and learn which paces still leave them with strong recall.
+WikiSpreed is for curious people who want a playful daily way to discover Wikipedia, practice reading faster, and learn which paces still leave them with strong recall.
 
 ## Product Purpose
 
@@ -16,11 +16,11 @@ The app turns a random English Wikipedia article into a repeatable loop: roll, r
 
 ## Positioning
 
-Unlike rapid-serial-word-presentation readers, speed-read never pulls or reflows text through a continuously moving viewport. The reader may scroll freely; the app pages only when the boundary would otherwise leave the usable screen.
+Unlike rapid-serial-word-presentation readers, WikiSpreed never pulls or reflows text through a continuously moving viewport. The reader may scroll freely; the app pages only when the boundary would otherwise leave the usable screen.
 
 ## Operating Context
 
-The product is a public website intended for `read.adhv.me`. It is used on desktop with arrow keys and on mobile with quiet, touch-friendly substitute controls. Most sessions begin with a Wikipedia roll; readers may also arrive with a URL or text already copied to their clipboard.
+The product is a public website at `wikispreed.com`. It is used on desktop with arrow keys and on mobile with quiet, touch-friendly substitute controls. Most sessions begin with a Wikipedia roll; readers may also arrive with a URL or text already copied to their clipboard.
 
 ## Capabilities and Constraints
 
@@ -47,7 +47,7 @@ The product is a public website intended for `read.adhv.me`. It is used on deskt
 
 ## Brand Commitments
 
-The product name is “speed-read,” with “Wikipedia roulette” as its primary experience. Interface language should be plain, lively, and precise. The roll may feel playful, but scores remain personal evidence: avoid streak pressure, leaderboards, confetti, and judgmental labels.
+The product name is “WikiSpreed,” with Wikipedia roulette as its primary experience. Interface language should be plain, lively, and precise. The roll may feel playful, but scores remain personal evidence: avoid streak pressure, leaderboards, confetti, and judgmental labels.
 
 ## Evidence on Hand
 

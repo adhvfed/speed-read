@@ -1,7 +1,7 @@
 {
-  "name": "speed-read",
-  "short_name": "speed-read",
-  "description": "A calm reading instrument that keeps the page still.",
+  "name": "WikiSpreed",
+  "short_name": "WikiSpreed",
+  "description": "Roll a random Wikipedia article, read it at your pace, and see what stuck.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#eef3f6",
