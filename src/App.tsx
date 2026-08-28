@@ -828,10 +828,14 @@ function Reader({
           <span className="mobile-status-clock">{formatClock(estimatedSeconds(wordsLeft, committedWpm))}</span>
         </div>
         <div className="reader-stage" ref={readerStage}>
-          <div className="reading-curtain" style={{ height: curtainHeight }} aria-hidden="true" />
+          <div
+            className="reading-curtain"
+            style={{ transform: `translateY(calc(-100% + ${curtainHeight}px))` }}
+            aria-hidden="true"
+          />
           <div
             className="reading-progress-marker"
-            style={{ top: curtainHeight }}
+            style={{ transform: `translate(-50%, calc(-100% + ${curtainHeight}px))` }}
             role="progressbar"
             aria-label="Article progress"
             aria-valuemin={0}
@@ -840,7 +844,11 @@ function Reader({
           >
             <b>{progress}%</b><span>read</span>
           </div>
-          <div className="reading-future-curtain" style={{ top: futureCurtainTop }} aria-hidden="true" />
+          <div
+            className="reading-future-curtain"
+            style={{ transform: `translateY(${futureCurtainTop}px)` }}
+            aria-hidden="true"
+          />
           <div className="reader-copy" ref={copyRef}>
             {lines.map((line, index) => {
               const active = index === activeIndex;
@@ -853,6 +861,7 @@ function Reader({
                     if (index === visibleEndIndex) visibleEndElement.current = element;
                   }}
                   type="button"
+                  data-line-index={index}
                   className={`reading-line${active ? ' active' : ''}${visible ? ' window-visible' : ''}${line.paragraphStart ? ' paragraph-start' : ''}`}
                   onClick={() => selectLine(line.startWord)}
                   tabIndex={active && visible ? 0 : -1}

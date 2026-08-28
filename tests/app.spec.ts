@@ -227,6 +227,28 @@ test('manual reader scrolling remains under the player’s control', async ({ pa
   expect(await page.evaluate(() => window.scrollY)).toBe(manuallyScrolledTo);
 });
 
+test('the reading window moves only after a line is finished', async ({ page }) => {
+  await page.goto('/?demo=reader');
+  await expect(page.locator('.reading-line.active')).toBeVisible();
+  await page.keyboard.press('Space');
+  await expect(page.locator('.reader-shell')).toHaveClass(/timer-paused/);
+  const curtain = page.locator('.reading-curtain');
+  await page.waitForTimeout(350);
+  const startingBoundary = await curtain.evaluate((element) => element.getBoundingClientRect().bottom);
+
+  // Pausing proves the aperture does not creep through a line while it is read.
+  await page.waitForTimeout(400);
+  expect(await curtain.evaluate((element) => element.getBoundingClientRect().bottom)).toBeCloseTo(startingBoundary, 0);
+
+  const activeIndex = Number(await page.locator('.reading-line.active').getAttribute('data-line-index'));
+  const finishedLine = page.locator(`.reading-line[data-line-index="${activeIndex}"]`);
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator(`.reading-line[data-line-index="${activeIndex + 1}"]`)).toHaveClass(/active/);
+  await expect(finishedLine).toHaveCSS('transition-delay', '0.28s');
+  await expect.poll(() => curtain.evaluate((element) => element.getBoundingClientRect().bottom))
+    .toBeGreaterThan(startingBoundary + 5);
+});
+
 test('a reading line stays within the comfortable measure', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'The measure cap only binds where the viewport is wider than it.');
   await page.goto('/?demo=reader');
