@@ -49,3 +49,24 @@ export function scoreQuiz(quiz: ReadingQuiz, answers: Record<number, number>): n
     0,
   );
 }
+
+/** Shuffles each answer set once while keeping its correct-answer pointer intact. */
+export function randomizeQuizChoices(
+  quiz: ReadingQuiz,
+  random: () => number = Math.random,
+): ReadingQuiz {
+  return {
+    questions: quiz.questions.map((question) => {
+      const choices = question.choices.map((choice, originalIndex) => ({ choice, originalIndex }));
+      for (let index = choices.length - 1; index > 0; index -= 1) {
+        const swapIndex = Math.floor(random() * (index + 1));
+        [choices[index], choices[swapIndex]] = [choices[swapIndex], choices[index]];
+      }
+      return {
+        ...question,
+        choices: choices.map(({ choice }) => choice),
+        correctIndex: choices.findIndex(({ originalIndex }) => originalIndex === question.correctIndex),
+      };
+    }),
+  };
+}

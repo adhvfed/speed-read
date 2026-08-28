@@ -48,7 +48,7 @@ async function answerAll(page: Page, choice = 0) {
   for (let index = 0; index < QUIZ.questions.length; index += 1) {
     const question = page.locator('.quiz-question');
     await expect(question).toHaveCount(1);
-    await question.getByRole('radio').nth(choice).check();
+    await question.getByRole('radio', { name: choice === 0 ? 'Supported answer' : 'Distractor one' }).check();
     if (index < QUIZ.questions.length - 1) {
       await expect(question.locator('legend')).toContainText(`Grounded question ${index + 2}?`);
     }

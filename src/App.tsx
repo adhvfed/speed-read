@@ -16,7 +16,7 @@ import {
 import type { CSSProperties, ReactNode } from 'react';
 import { getStoredArticle, storeArticle } from './lib/articleStore';
 import { extractArticle, generateQuiz, isQuizAvailable, randomWikipediaArticles } from './lib/api';
-import { scoreQuiz } from './lib/quiz';
+import { randomizeQuizChoices, scoreQuiz } from './lib/quiz';
 import { parseHashRoute, roundHash, scoreHash } from './lib/routes';
 import {
   DEFAULT_TIER_ID,
@@ -1429,7 +1429,7 @@ export default function App() {
     setQuizError('');
     setView('round');
     try {
-      const quiz = await generateQuiz(article);
+      const quiz = randomizeQuizChoices(await generateQuiz(article));
       persistRound({ ...round, quiz });
       setQuizStatus('idle');
     } catch (error) {
@@ -1454,7 +1454,7 @@ export default function App() {
     setQuizStatus('loading');
     setQuizError('');
     try {
-      const quiz = await generateQuiz(source);
+      const quiz = randomizeQuizChoices(await generateQuiz(source));
       persistRound({ ...round, quiz });
       setQuizStatus('idle');
     } catch (error) {
