@@ -1218,6 +1218,10 @@ button:disabled {
   grid-template-columns: 248px minmax(0, 1fr);
   min-height: 100vh;
   --tier-color: var(--hot);
+  /* A custom property resolves against the element it is declared on, not the
+     one it is used on, so the screen variant is redeclared wherever the round
+     overrides --tier-color. */
+  --tier-on-screen: color-mix(in srgb, var(--tier-color) 62%, var(--screen-ink));
 }
 
 .reader-utility {
@@ -1554,6 +1558,11 @@ button:disabled {
 .countdown-limit,
 .countdown-meter {
   stroke-width: 6;
+}
+
+.countdown-ring {
+  stroke: var(--screen-ink);
+  stroke-width: 2;
 }
 
 .countdown-limit {
@@ -2490,6 +2499,7 @@ button:disabled {
   }
 
   .mobile-status-speed small,
+  .mobile-status-progress,
   .mobile-status-clock {
     font-size: 0.6875rem;
     font-weight: 800;
@@ -2499,8 +2509,12 @@ button:disabled {
     color: var(--ink);
   }
 
-  /* Progress is already the energy bar beside it; the strip states the clock
-     the desktop rail states, which nothing else on a phone reports. */
+  .mobile-status-progress {
+    min-width: 3ch;
+    text-align: right;
+    color: var(--tier-color);
+  }
+
   .reading-curtain > span {
     display: none;
   }
@@ -2522,8 +2536,8 @@ button:disabled {
     line-height: 1.58;
   }
 
-  /* The boundary bar is the pace timer on a phone: it drains left to right
-     under the active line, so the warning arrives without a gutter. */
+  /* The boundary bar is the pace timer on a phone. Its trailing edge moves
+     left-to-right with the reading direction as the remaining time recedes. */
   .countdown {
     position: static;
     width: auto;
@@ -2542,9 +2556,11 @@ button:disabled {
     /* The pale boundary is the track; the draining bar rides on top of it. */
     z-index: 1;
     display: block;
+    width: 100%;
     height: 5px;
     border-radius: 3px;
     background: var(--tier-on-screen);
+    transform-origin: right center;
     animation: line-drain var(--line-duration, 2s) linear forwards;
   }
 
@@ -2557,8 +2573,8 @@ button:disabled {
   }
 
   @keyframes line-drain {
-    from { width: 100%; }
-    to { width: 0%; }
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
   }
 
   .mobile-reader-controls {

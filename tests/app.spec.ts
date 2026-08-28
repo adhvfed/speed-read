@@ -329,9 +329,15 @@ test('touch controls replace keyboard controls on mobile', async ({ page }, test
   // Pace is committed before the round, so the dock carries three controls.
   await expect(dock.locator('.reader-control')).toHaveCount(3);
   await expect(dock.getByRole('button', { name: 'Next' })).toBeVisible();
+  await expect(page.locator('.mobile-status-progress')).toHaveText('0%');
+  expect(await page.locator('.countdown-bar').evaluate((element) => {
+    const origin = Number.parseFloat(getComputedStyle(element).transformOrigin);
+    return Math.abs(origin - (element as HTMLElement).offsetWidth);
+  })).toBeLessThanOrEqual(1);
   const firstText = await page.locator('.reading-line.active').textContent();
   await dock.getByRole('button', { name: 'Next' }).click();
   await expect(page.locator('.reading-line.active')).not.toHaveText(firstText ?? '');
+  await expect(page.locator('.mobile-status-progress')).not.toHaveText('0%');
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   await page.screenshot({ path: testInfo.outputPath('reader-mobile.png') });

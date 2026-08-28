@@ -568,6 +568,9 @@ function Countdown({ duration, identity }: { duration: number; identity: string 
   return (
     <span className="countdown" key={identity} style={style} aria-label={`Line pace timer: ${duration.toFixed(1)} seconds`}>
       <svg viewBox="0 0 44 44" aria-hidden="true">
+        {/* A keyline, so the component's own bounds clear 3:1 without darkening
+            the groove into the meter's own value. */}
+        <circle className="countdown-ring" cx="22" cy="22" r="21" />
         <circle className="countdown-limit" cx="22" cy="22" r="17" pathLength="100" />
         <circle className="countdown-meter" cx="22" cy="22" r="17" pathLength="100" />
       </svg>
@@ -821,6 +824,7 @@ function Reader({
           <button type="button" onClick={onAbandon} aria-label="Abandon round">×</button>
           <span className="mobile-status-speed"><b>{committedWpm}</b><small>wpm</small></span>
           <EnergyBar fraction={progress / 100} className="mobile-status-energy" />
+          <span className="mobile-status-progress">{progress}%</span>
           <span className="mobile-status-clock">{formatClock(estimatedSeconds(wordsLeft, committedWpm))}</span>
         </div>
         <div className="reader-stage" ref={readerStage}>
