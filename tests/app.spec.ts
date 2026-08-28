@@ -37,15 +37,20 @@ async function rollToBetScreen(page: Page) {
 async function playRound(page: Page) {
   await page.locator('.bet-start').click();
   await expect(page.locator('.reader-shell')).toBeVisible();
-  const lineCount = await page.locator('.reading-line').count();
-  for (let index = 0; index < lineCount; index += 1) await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.reading-line.active')).toBeVisible();
+  for (let index = 0; index < 200 && await page.locator('.article-end .primary-button').count() === 0; index += 1) {
+    await page.keyboard.press('ArrowDown');
+  }
+  await page.keyboard.press('ArrowDown');
 }
 
 async function answerAll(page: Page, choice = 0) {
-  for (const question of await page.locator('.quiz-question').all()) {
+  for (let index = 0; index < QUIZ.questions.length; index += 1) {
+    const question = page.locator('.quiz-question');
+    await expect(question).toHaveCount(1);
     await question.getByRole('radio').nth(choice).check();
+    await page.getByRole('button', { name: index === QUIZ.questions.length - 1 ? 'See my score' : 'Next question' }).click();
   }
-  await page.getByRole('button', { name: 'Lock in answers' }).click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -213,13 +218,16 @@ test('keyboard focus follows a focused reading line when the boundary advances',
 });
 
 test('a finished round is scored, banked, and restorable from its hash', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'The scoring path is covered once.');
   await page.goto('/');
   await rollToBetScreen(page);
   await page.keyboard.press('2'); // Brisk, 300 wpm
   await playRound(page);
 
   await expect(page.getByRole('heading', { name: 'What stayed with you?' })).toBeVisible({ timeout: 8_000 });
+  await expect(page.locator('.quiz-question')).toHaveCount(1);
+  await expect(page.locator('.quiz-question legend')).toContainText('Grounded question 1?');
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: testInfo.outputPath('quiz.png'), fullPage: true });
   await answerAll(page);
 
   // 4 correct x 300 wpm = 1200, x1.5 for the clean sweep = 1800. No streak yet.
@@ -232,7 +240,13 @@ test('a finished round is scored, banked, and restorable from its hash', async (
   await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/^#score\//);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Here’s what stayed.' })).toBeVisible();
-  await expect(page.locator('.quiz-question input[type="radio"]:checked')).toHaveCount(4);
+  await expect(page.locator('.quiz-question input[type="radio"]:checked')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Play again · 300 wpm' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Change speed' })).toBeVisible();
+  await page.getByRole('button', { name: 'Play again · 300 wpm' }).click();
+  await expect(page.getByRole('main', { name: 'Rolling an article' })).toBeVisible();
+  await expect(page.locator('.reader-shell')).toBeVisible({ timeout: 8_000 });
+  await expect(page.locator('.committed-speed strong')).toHaveText('300');
 });
 
 test('a failed round pays less and resets the streak', async ({ page }, testInfo) => {

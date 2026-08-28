@@ -862,7 +862,8 @@ function RoundView({
   status,
   error,
   onRetry,
-  onRollNext,
+  onPlayAgain,
+  onChangeSpeed,
   onProgress,
   onSubmit,
 }: {
@@ -873,7 +874,8 @@ function RoundView({
   status: QuizStatus;
   error: string;
   onRetry: () => void;
-  onRollNext: () => void;
+  onPlayAgain: () => void;
+  onChangeSpeed: () => void;
   onProgress: () => void;
   onSubmit: (answers: number[]) => void;
 }) {
@@ -882,6 +884,8 @@ function RoundView({
   const [answers, setAnswers] = useState<Record<number, number>>(() => Object.fromEntries(
     (round.quizAnswers ?? []).map((answer, index) => [index, answer]),
   ));
+  const [questionIndex, setQuestionIndex] = useState(0);
+  const [questionDirection, setQuestionDirection] = useState<'forward' | 'back'>('forward');
   const answeredCount = Object.keys(answers).length;
 
   const breakdown = useMemo(
@@ -910,7 +914,7 @@ function RoundView({
         <p className="quiz-error" role="alert">{error || 'The recall check could not be created.'}</p>
         <div className="quiz-actions">
           {status === 'error' && <button className="primary-button" type="button" onClick={onRetry}>Try again</button>}
-          <button className="quiet-button" type="button" onClick={onRollNext}>Roll another article</button>
+          <button className="quiet-button" type="button" onClick={onChangeSpeed}>Roll another article</button>
           <button className="quiet-button" type="button" onClick={onProgress}>See progress</button>
         </div>
       </main>
@@ -922,6 +926,22 @@ function RoundView({
     onSubmit(quiz.questions.map((_, index) => answers[index]));
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
+
+  const showQuestion = (nextIndex: number) => {
+    setQuestionDirection(nextIndex > questionIndex ? 'forward' : 'back');
+    setQuestionIndex(nextIndex);
+  };
+
+  const advance = () => {
+    if (answers[questionIndex] === undefined) return;
+    if (questionIndex === quiz.questions.length - 1) {
+      submit();
+      return;
+    }
+    showQuestion(questionIndex + 1);
+  };
+
+  const question = quiz.questions[questionIndex];
 
   return (
     <main className="workspace round-workspace">
@@ -949,8 +969,8 @@ function RoundView({
           />
         ) : (
           <div className="quiz-measure" aria-live="polite">
-            <span>Answered</span>
-            <strong>{answeredCount}</strong>
+            <span>Question</span>
+            <strong>{questionIndex + 1}</strong>
             <small>/ {quiz.questions.length}</small>
           </div>
         )}
@@ -960,15 +980,27 @@ function RoundView({
         <section className="round-standing" aria-label="Your standing">
           <RankBar standing={standing} />
           <div className="round-next">
-            <button className="primary-button" type="button" onClick={onRollNext}>Roll next article</button>
+            <button className="primary-button" type="button" onClick={onPlayAgain}>
+              Play again · {round.committedWpm} wpm
+            </button>
+            <button className="quiet-button" type="button" onClick={onChangeSpeed}>Change speed</button>
             <button className="quiet-button" type="button" onClick={onProgress}>See progress</button>
           </div>
         </section>
       )}
 
       <form className="quiz-form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-        {quiz.questions.map((question, questionIndex) => (
-          <fieldset className="quiz-question" key={question.prompt} disabled={submitted}>
+        <div className="quiz-progress" aria-label={`Question ${questionIndex + 1} of ${quiz.questions.length}`}>
+          {quiz.questions.map((item, index) => (
+            <i
+              key={item.prompt}
+              className={`${index === questionIndex ? 'active' : ''}${answers[index] !== undefined ? ' answered' : ''}`}
+              aria-hidden="true"
+            />
+          ))}
+        </div>
+        <div className={`quiz-question-stage ${questionDirection}`} key={`${submitted ? 'review' : 'quiz'}-${questionIndex}`}>
+          <fieldset className="quiz-question" disabled={submitted}>
             <legend><span>{String(questionIndex + 1).padStart(2, '0')}</span>{question.prompt}</legend>
             <div className="quiz-choices">
               {question.choices.map((choice, choiceIndex) => {
@@ -993,17 +1025,28 @@ function RoundView({
             </div>
             {submitted && <p className="quiz-explanation">{question.explanation}</p>}
           </fieldset>
-        ))}
+        </div>
 
         <footer className="quiz-footer">
-          <p>Scores stay in this browser.</p>
+          <button
+            className="quiet-button quiz-back"
+            type="button"
+            onClick={() => showQuestion(questionIndex - 1)}
+            disabled={questionIndex === 0}
+          >
+            <Arrow direction="left" /> Previous
+          </button>
           <div className="quiz-actions">
-            {!submitted && (
-              <button className="primary-button" type="submit" disabled={answeredCount !== quiz.questions.length}>
-                Lock in answers
+            {!submitted ? (
+              <button className="primary-button" type="button" onClick={advance} disabled={answers[questionIndex] === undefined}>
+                {questionIndex === quiz.questions.length - 1 ? 'See my score' : 'Next question'}
+                {questionIndex < quiz.questions.length - 1 && <Arrow direction="right" />}
               </button>
-            )}
-            {submitted && <button className="primary-button" type="button" onClick={onRollNext}>Roll next article</button>}
+            ) : questionIndex < quiz.questions.length - 1 ? (
+              <button className="primary-button" type="button" onClick={() => showQuestion(questionIndex + 1)}>
+                Next answer <Arrow direction="right" />
+              </button>
+            ) : null}
           </div>
         </footer>
       </form>
@@ -1239,7 +1282,7 @@ export default function App() {
     };
   }, [demo, setRoute]);
 
-  const rollArticle = async () => {
+  const rollArticle = async (startImmediately = false) => {
     if (rollInFlight.current) return;
     rollInFlight.current = true;
     const generation = ++rollGeneration.current;
@@ -1297,7 +1340,8 @@ export default function App() {
       setArticle(nextArticle);
       setArticleId(stored.id);
       setStoredLocally(stored.saved);
-      setView('bet');
+      if (startImmediately) setReaderInstance((value) => value + 1);
+      setView(startImmediately ? 'reader' : 'bet');
       setRoute(roundHash(stored.id));
       window.scrollTo({ top: 0, behavior: 'auto' });
     } catch (error) {
@@ -1472,7 +1516,8 @@ export default function App() {
           status={quizStatus}
           error={quizError}
           onRetry={() => void retryQuiz()}
-          onRollNext={() => void rollArticle()}
+          onPlayAgain={() => void rollArticle(true)}
+          onChangeSpeed={() => void rollArticle()}
           onProgress={() => navigate('progress')}
           onSubmit={submitAnswers}
         />

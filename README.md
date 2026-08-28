@@ -16,7 +16,7 @@ A Wikipedia roulette for speed-reading practice. Roll a random English Wikipedia
 - On mobile, the same four actions are available in a fixed thumb-control dock.
 - When quiz generation is configured, finishing a read creates a four-question recall check with GPT-5.6 Luna. Quiz results are saved with the local session and can be reviewed after refresh.
 - When pasted prose has no useful heading, Luna supplies a short title for the Start gate. Existing page titles are kept, and a failed or unavailable title request never blocks the read.
-- A scored quiz leads directly to the next roll. The local stats view groups quiz accuracy by measured 100-wpm speed bands and keeps a chronological, source-linked article log.
+- The recall check presents one question at a time, then reveals the score and lets you play again at the same speed or choose a new one. The local stats view groups quiz accuracy by measured 100-wpm speed bands and keeps a chronological, source-linked article log.
 
 Wikipedia selection follows [MediaWiki API etiquette](https://www.mediawiki.org/wiki/API:Etiquette): each user action makes one serial GET request, includes an `Api-User-Agent` that identifies this repository, supplies `maxlag`, and presents load/rate-limit failures as a recoverable roll state. The app does not bulk-download, prefetch, or retry pages in parallel.
 
