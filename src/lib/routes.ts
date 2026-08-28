@@ -1,23 +1,22 @@
 export type HashRoute =
   | { view: 'home' }
-  | { view: 'history' }
-  | { view: 'quiz'; sessionId: string }
-  | { view: 'reader'; articleId: string; word: number };
+  | { view: 'progress' }
+  | { view: 'score'; roundId: string }
+  | { view: 'round'; articleId: string };
 
 export function parseHashRoute(hash: string): HashRoute {
-  if (hash === '#progress') return { view: 'history' };
-  const quizMatch = hash.match(/^#quiz\/([a-z0-9-]{8,100})$/i);
-  if (quizMatch) return { view: 'quiz', sessionId: quizMatch[1] };
-  const match = hash.match(/^#read\/([a-f0-9]{16,64})(?:\/(\d+))?$/i);
-  if (!match) return { view: 'home' };
-  const word = Number(match[2] ?? 0);
-  return { view: 'reader', articleId: match[1].toLowerCase(), word: Number.isSafeInteger(word) ? word : 0 };
+  if (hash === '#progress') return { view: 'progress' };
+  const scoreMatch = hash.match(/^#score\/([a-z0-9-]{8,100})$/i);
+  if (scoreMatch) return { view: 'score', roundId: scoreMatch[1] };
+  const roundMatch = hash.match(/^#round\/([a-f0-9]{16,64})$/i);
+  if (roundMatch) return { view: 'round', articleId: roundMatch[1].toLowerCase() };
+  return { view: 'home' };
 }
 
-export function quizHash(sessionId: string): string {
-  return `#quiz/${sessionId}`;
+export function scoreHash(roundId: string): string {
+  return `#score/${roundId}`;
 }
 
-export function readerHash(articleId: string, word = 0): string {
-  return `#read/${articleId}/${Math.max(0, Math.floor(word))}`;
+export function roundHash(articleId: string): string {
+  return `#round/${articleId}`;
 }

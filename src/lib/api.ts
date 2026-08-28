@@ -41,7 +41,20 @@ export async function extractArticle(url: string, signal?: AbortSignal): Promise
   );
 }
 
-export async function randomWikipediaArticle(request: typeof fetch = fetch, signal?: AbortSignal): Promise<WikipediaSelection> {
+/**
+ * Wikitext byte length is a poor predictor of how much readable prose an
+ * article has: a table-heavy election page can run to 50,000 bytes and render
+ * fewer than a hundred words. Rather than making a fresh API call every time a
+ * roll turns out to be unplayable, one call asks for a few candidates and the
+ * caller tries them in order. Requests stay serial and one roll deep.
+ */
+export const ROLL_CANDIDATES = 3;
+
+export async function randomWikipediaArticles(
+  count: number = ROLL_CANDIDATES,
+  request: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<WikipediaSelection[]> {
   const url = new URL(WIKIPEDIA_RANDOM_API);
   url.search = new URLSearchParams({
     action: 'query',
@@ -50,8 +63,8 @@ export async function randomWikipediaArticle(request: typeof fetch = fetch, sign
     generator: 'random',
     grnnamespace: '0',
     grnfilterredir: 'nonredirects',
-    grnminsize: '1000',
-    grnlimit: '1',
+    grnminsize: '6000',
+    grnlimit: String(Math.max(1, Math.min(10, count))),
     prop: 'info',
     inprop: 'url',
     maxlag: '5',
@@ -85,11 +98,17 @@ export async function randomWikipediaArticle(request: typeof fetch = fetch, sign
   }
   if (!response.ok || apiCode) throw new Error('Wikipedia could not choose an article. Roll again.');
 
-  const page = body.query?.pages?.[0];
-  if (!page || typeof page.pageid !== 'number' || typeof page.title !== 'string' || typeof page.fullurl !== 'string') {
-    throw new Error('Wikipedia returned an incomplete article. Roll again.');
-  }
-  return { pageId: page.pageid, title: page.title, url: page.fullurl };
+  const selections = (body.query?.pages ?? []).flatMap((page) => (
+    typeof page.pageid === 'number' && typeof page.title === 'string' && typeof page.fullurl === 'string'
+      ? [{ pageId: page.pageid, title: page.title, url: page.fullurl }]
+      : []
+  ));
+  if (selections.length === 0) throw new Error('Wikipedia returned an incomplete article. Roll again.');
+  return selections;
+}
+
+export async function randomWikipediaArticle(request: typeof fetch = fetch, signal?: AbortSignal): Promise<WikipediaSelection> {
+  return (await randomWikipediaArticles(1, request, signal))[0];
 }
 
 export async function isQuizAvailable(): Promise<boolean> {

@@ -11,6 +11,47 @@ const JUNK_PATTERNS = [
   /follow us on/i,
 ];
 
+/**
+ * Everything from one of these headings onward is apparatus rather than
+ * article: link lists, citations, and reading suggestions. A speed reader who
+ * reaches them spends minutes advancing one bibliography entry at a time.
+ */
+const END_MATTER_HEADING =
+  /^(references?|notes?( and references?)?|footnotes?|citations?|sources?|bibliography|further reading|external links?|see also|works cited|explanatory notes|general references|related pages|navigation menu)$/i;
+
+/** A reference-list entry that survived without its container. */
+const ORPHAN_REFERENCE = /^[↑^]\s/;
+
+const CITATION_MARKER = /\s*\[(?:\d{1,4}|[a-z]|[ivxlcdm]{1,6}|edit|citation needed|note \d+|nb \d+|clarification needed|who\?|when\?|why\?|sic)\]/gi;
+
+export function stripReferenceMarkers(value: string): string {
+  return value
+    .replace(CITATION_MARKER, '')
+    .replace(/\s+([,.;:!?)\]}])/g, '$1')
+    .replace(/([([{])\s+/g, '$1')
+    .replace(/\(\s*\)/g, '')
+    .replace(/ {2,}/g, ' ')
+    .trim();
+}
+
+function looksLikeHeading(value: string): boolean {
+  return !/[.!?]["')\]]?$/.test(value) && value.split(/\s+/).filter(Boolean).length <= 6;
+}
+
+/**
+ * Continuous prose is the only thing this reader can present well. Short
+ * fragments are kept only when they read as section headings, which orient the
+ * reader, and rejected when they look like a stray table cell or caption.
+ */
+export function readsAsProseOrHeading(value: string): boolean {
+  const words = value.split(/\s+/).filter(Boolean);
+  if (words.length >= 6) return true;
+  if (/[.!?]["')\]]?$/.test(value)) return true; // a short but complete sentence
+  if (/[,;:]$/.test(value)) return false; // a fragment cut out of a larger structure
+  // Otherwise only a section heading earns a line: short, capitalised, unpunctuated.
+  return /^[\p{Lu}\p{N}"']/u.test(value) && !/[|/]/.test(value);
+}
+
 export const SAMPLE_ARTICLE: ArticleContent = {
   title: 'A brief note on attention',
   byline: 'Built-in sample',
@@ -43,13 +84,35 @@ export function usefulParagraphs(values: string[]): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
   for (const raw of values) {
-    const text = normalizeWhitespace(raw);
+    const text = stripReferenceMarkers(normalizeWhitespace(raw));
+    if (END_MATTER_HEADING.test(text)) break;
+    if (ORPHAN_REFERENCE.test(text)) continue;
     const key = text.toLocaleLowerCase();
-    if (!isUsefulParagraph(text) || seen.has(key)) continue;
+    if (!isUsefulParagraph(text) || !readsAsProseOrHeading(text) || seen.has(key)) continue;
     seen.add(key);
     result.push(text);
   }
+  // A heading whose body was removed as non-prose announces a section that is
+  // no longer there, so drop any heading left with nothing after it.
+  while (result.length > 0 && looksLikeHeading(result[result.length - 1])) result.pop();
   return result;
+}
+
+/**
+ * Page titles usually carry the site name as a suffix. The reader shows the
+ * title on the start gate and in the article log, where "Jordan Wynter"
+ * belongs and "Jordan Wynter - Wikipedia" does not.
+ */
+export function cleanTitle(title: string, siteName?: string | null): string {
+  const text = normalizeWhitespace(title);
+  const suffix = normalizeWhitespace(siteName ?? '');
+  const candidates = suffix ? [suffix, 'Wikipedia'] : ['Wikipedia'];
+  for (const candidate of candidates) {
+    const pattern = new RegExp(`\\s*[-–—|·:]\\s*${candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i');
+    const trimmed = text.replace(pattern, '');
+    if (trimmed && trimmed !== text) return trimmed;
+  }
+  return text;
 }
 
 export function pastedTextToArticle(raw: string): ArticleContent {
@@ -82,6 +145,25 @@ export function pastedTextToArticle(raw: string): ArticleContent {
     sourceUrl: null,
     paragraphs,
   };
+}
+
+/**
+ * A round should take a comparable amount of time whatever article turns up,
+ * so a long article is cut to whole paragraphs up to a word budget. Score does
+ * not scale with length, and a thirteen-minute round pays no more than a
+ * three-minute one, so players would otherwise just reroll anything long.
+ */
+export function roundExcerpt(paragraphs: string[], maxWords: number): string[] {
+  const excerpt: string[] = [];
+  let used = 0;
+  for (const paragraph of paragraphs) {
+    const words = paragraph.split(/\s+/).filter(Boolean).length;
+    if (excerpt.length > 0 && used + words > maxWords) break;
+    excerpt.push(paragraph);
+    used += words;
+    if (used >= maxWords) break;
+  }
+  return excerpt;
 }
 
 export function countWords(paragraphs: string[]): number {

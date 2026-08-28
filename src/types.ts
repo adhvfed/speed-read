@@ -25,6 +25,32 @@ export interface ReadingQuiz {
   questions: QuizQuestion[];
 }
 
+/**
+ * One played round of WikiSpreed: an article, the speed the player committed
+ * to before reading it, and how that bet turned out.
+ */
+export interface GameRound {
+  id: string;
+  title: string;
+  sourceUrl: string | null;
+  articleId?: string;
+  wordCount: number;
+  committedWpm: number;
+  startedAt: string;
+  completedAt: string;
+  durationSeconds: number;
+  /** Present once the recall check has been generated. */
+  quiz?: ReadingQuiz;
+  quizAnswers?: number[];
+  /** Scoring fields are written together when the quiz is submitted. */
+  correct: number;
+  questions: number;
+  score: number;
+  passed: boolean;
+  cleanSweep: boolean;
+  streakBefore: number;
+}
+
 export interface CompletedSession {
   id: string;
   title: string;

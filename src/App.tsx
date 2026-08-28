@@ -1,59 +1,92 @@
 /**
- * THESIS: Wikipedia roulette turns speed practice into a repeatable roll-read-recall loop; it refuses both generic import-first tooling and casino chrome.
- * OWN-WORLD: Cool white and mineral-blue planes, one broad cobalt roll field, a geometric die, one cobalt reading edge, and flat evidence rows.
- * STORY: Roll one useful article, read it at a chosen pace, see what stayed, then roll again with better evidence for the next speed.
- * FIRST VIEWPORT: Exact benefit copy leads into a dominant cobalt Wikipedia roll; one combined link-or-text field remains visibly secondary.
- * FORM: Information and wayfinding, with Wikipedia first and own-source second; Sutnar lineage, Catalog v1, seed random-e169e3b7c3a22bbf.
+ * THESIS: WikiSpreed is a wager. You roll an article, bet a reading speed you
+ * cannot change, and find out from a recall check whether the bet was good.
+ * OWN-WORLD: Cool white and mineral-blue planes, one cobalt reading edge, and
+ * scoreboards built from tabular numerals rather than badges and confetti.
+ * STORY: Roll, commit, read under a locked clock, see what stayed, score, again.
  */
 import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { getStoredArticle, storeArticle } from './lib/articleStore';
-import { extractArticle, generateQuiz, generateTitle, isQuizAvailable, randomWikipediaArticle } from './lib/api';
+import { extractArticle, generateQuiz, isQuizAvailable, randomWikipediaArticles } from './lib/api';
 import { scoreQuiz } from './lib/quiz';
-import { parseHashRoute, quizHash, readerHash } from './lib/routes';
-import { inferReadingSource } from './lib/source';
-import { accuracyBySpeed } from './lib/stats';
+import { parseHashRoute, roundHash, scoreHash } from './lib/routes';
 import {
-  SAMPLE_ARTICLE,
-  countWords,
-  fallbackWrap,
-  pastedTextToArticle,
-  wrapParagraphs,
-} from './lib/text';
-import { loadLocalPace, loadLocalSessions, saveLocalPace, saveLocalSession } from './lib/storage';
+  DEFAULT_TIER_ID,
+  SPEED_TIERS,
+  bestCleanSpeed,
+  bestStreak,
+  currentStreak,
+  estimatedSeconds,
+  formatClock,
+  rankFor,
+  recordForWpm,
+  reliableCeiling,
+  scoreRound,
+  cleanSweepPayout,
+  speedMultiplier,
+  tierById,
+  tierForWpm,
+  tierRecords,
+  totalPoints,
+} from './lib/game';
+import type { ScoreBreakdown, SpeedTier } from './lib/game';
+import { SAMPLE_ARTICLE, countWords, fallbackWrap, roundExcerpt, wrapParagraphs } from './lib/text';
+import { loadPreferredTier, loadRounds, saveRound, savePreferredTier } from './lib/storage';
 import { readingScrollDelta } from './lib/viewport';
-import type { ArticleContent, CompletedSession, ReadingLine, ReadingQuiz } from './types';
+import type { ArticleContent, GameRound, ReadingLine } from './types';
 
-type View = 'home' | 'reader' | 'history' | 'quiz' | 'loading' | 'rolling';
-type SourceType = CompletedSession['sourceType'];
+type View = 'home' | 'rolling' | 'bet' | 'reader' | 'round' | 'progress' | 'loading';
 type QuizStatus = 'idle' | 'loading' | 'error';
 
-const MIN_WPM = 100;
-const MAX_WPM = 800;
-const WPM_STEP = 25;
+type PendingRound = Omit<GameRound, 'correct' | 'questions' | 'score' | 'passed' | 'cleanSweep' | 'streakBefore'>;
+
+/** Fewer words than this makes a thin round and a thin recall check. */
+const MIN_ROUND_WORDS = 300;
+/** Caps a round at roughly four minutes at the slowest tier. */
+const MAX_ROUND_WORDS = 900;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
 function makeId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `session-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return globalThis.crypto?.randomUUID?.() ?? `round-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function formatDuration(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = seconds % 60;
-  return minutes > 0 ? `${minutes}m ${remainder}s` : `${remainder}s`;
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 }
 
-function sessionSpeed(session: CompletedSession): number {
-  return session.measuredWpm ?? session.endWpm;
+/** Counts a score up so the reveal has a beat to it. Static under reduced motion. */
+function useCountUp(target: number, durationMs = 900): number {
+  const [value, setValue] = useState(() => (prefersReducedMotion() ? target : 0));
+
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      setValue(target);
+      return;
+    }
+    let frame = 0;
+    const startedAt = performance.now();
+    const step = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / durationMs);
+      // Ease out so the number decelerates into its final value.
+      setValue(Math.round(target * (1 - (1 - progress) ** 3)));
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [durationMs, target]);
+
+  return value;
 }
 
 function Arrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down' }) {
@@ -66,6 +99,14 @@ function Arrow({ direction }: { direction: 'left' | 'right' | 'up' | 'down' }) {
       style={{ transform: `rotate(${rotations[direction]}deg)` }}
     >
       <path d="M5 12h13M13 6l6 6-6 6" />
+    </svg>
+  );
+}
+
+function PauseIcon({ paused }: { paused: boolean }) {
+  return (
+    <svg aria-hidden="true" className="icon" viewBox="0 0 24 24">
+      {paused ? <path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none" /> : <path d="M8 4v16M16 4v16" />}
     </svg>
   );
 }
@@ -126,12 +167,55 @@ function Wordmark({ onClick }: { onClick?: () => void }) {
   );
 }
 
+interface PlayerStanding {
+  points: number;
+  rank: ReturnType<typeof rankFor>;
+  streak: number;
+  rounds: number;
+  bestClean: number | null;
+}
+
+function usePlayerStanding(rounds: GameRound[]): PlayerStanding {
+  return useMemo(() => {
+    const points = totalPoints(rounds);
+    return {
+      points,
+      rank: rankFor(points),
+      streak: currentStreak(rounds),
+      rounds: rounds.length,
+      bestClean: bestCleanSpeed(rounds),
+    };
+  }, [rounds]);
+}
+
+function RankBar({ standing, compact = false }: { standing: PlayerStanding; compact?: boolean }) {
+  const { rank } = standing;
+  return (
+    <div className={`rank-bar${compact ? ' compact' : ''}`}>
+      <div className="rank-bar-head">
+        <strong>{rank.current.name}</strong>
+        <span>{standing.points.toLocaleString()} pts</span>
+      </div>
+      <div className="rank-track" role="presentation">
+        <i style={{ '--rank-fraction': `${rank.fraction * 100}%` } as CSSProperties} />
+      </div>
+      <p>
+        {rank.next
+          ? `${rank.pointsNeeded.toLocaleString()} to ${rank.next.name}`
+          : 'Top rank reached'}
+      </p>
+    </div>
+  );
+}
+
 function Shell({
   view,
+  standing,
   onNavigate,
   children,
 }: {
   view: View;
+  standing: PlayerStanding;
   onNavigate: (view: View) => void;
   children: ReactNode;
 }) {
@@ -139,146 +223,225 @@ function Shell({
     <div className="app-shell">
       <aside className="utility-shell">
         <Wordmark onClick={() => onNavigate('home')} />
-        <p className="tagline">Roll. Read.<br />See what stayed.</p>
+        <p className="tagline">Bet a speed.<br />Read. Prove it.</p>
         <nav className="primary-nav" aria-label="Primary">
           <button className={view === 'home' ? 'active' : ''} type="button" onClick={() => onNavigate('home')}>
-            Wikipedia roulette
+            Play
           </button>
-          <button className={view === 'history' ? 'active' : ''} type="button" onClick={() => onNavigate('history')}>
-            Stats &amp; history
+          <button className={view === 'progress' ? 'active' : ''} type="button" onClick={() => onNavigate('progress')}>
+            Progress
           </button>
         </nav>
-        <p className="local-storage-note">Progress stays in this browser.</p>
+        {standing.rounds > 0 && (
+          <div className="shell-standing">
+            <RankBar standing={standing} compact />
+            {standing.streak > 0 && (
+              <p className="shell-streak"><b>{standing.streak}</b> round streak</p>
+            )}
+          </div>
+        )}
+        <p className="local-storage-note">Scores stay in this browser.</p>
       </aside>
       <div className="mobile-app-bar">
         <Wordmark onClick={() => onNavigate('home')} />
-        <button className="mobile-progress-link" type="button" onClick={() => onNavigate('history')}>Stats</button>
+        <button className="mobile-progress-link" type="button" onClick={() => onNavigate('progress')}>
+          {standing.rounds > 0 ? `${standing.points.toLocaleString()} pts` : 'Progress'}
+        </button>
       </div>
       {children}
     </div>
   );
 }
 
-function Intake({
-  onStart,
+function Home({
+  standing,
+  rounds,
   onRoll,
-  rouletteError,
+  rollError,
+  quizAvailable,
 }: {
-  onStart: (article: ArticleContent, sourceType: SourceType) => Promise<void>;
+  standing: PlayerStanding;
+  rounds: GameRound[];
   onRoll: () => void;
-  rouletteError: string;
+  rollError: string;
+  quizAvailable: boolean | null;
 }) {
-  const [source, setSource] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const prepare = async () => {
-    setError('');
-    const inferred = inferReadingSource(source);
-    if (inferred.kind === 'invalid') {
-      setError(inferred.message);
-      return;
-    }
-
-    if (inferred.kind === 'text') {
-      let article = pastedTextToArticle(inferred.text);
-      if (countWords(article.paragraphs) < 20) {
-        setError('Add a little more text—about one short paragraph is enough to begin.');
-        return;
-      }
-      setLoading(true);
-      try {
-        if (article.title === 'Pasted text') {
-          const generatedTitle = await generateTitle(article.paragraphs).catch(() => null);
-          if (generatedTitle) article = { ...article, title: generatedTitle };
-        }
-        await onStart(article, 'text');
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const article = await extractArticle(inferred.url);
-      if (countWords(article.paragraphs) < 20) throw new Error('The page did not contain enough useful reading text.');
-      await onStart(article, 'url');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'That page could not be prepared. Paste its text instead.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const ceiling = useMemo(() => reliableCeiling(rounds), [rounds]);
+  const returning = standing.rounds > 0;
 
   return (
-    <main className="workspace intake-workspace">
-      <section className="intake-copy" aria-labelledby="intake-title">
-        <p className="section-label">Wikipedia roulette</p>
-        <h1 id="intake-title">Improve your speed reading</h1>
-        <p>Paste the link or text you want to read, gradually increase your reading speed when you become better.</p>
-        <p>Each run has an automatic quiz about the content at the end.</p>
+    <main className="workspace home-workspace">
+      <section className="home-lead">
+        <p className="section-label">Wikipedia speed-reading</p>
+        <h1>{returning ? 'Beat your ceiling.' : 'How fast can you read and still remember?'}</h1>
+        <p className="home-blurb">
+          Roll a random Wikipedia article and bet a reading speed before you start. The speed is
+          locked once the round begins. Four questions at the end decide whether the bet paid.
+        </p>
+        <button className="roll-action" type="button" onClick={onRoll}>
+          <DiceIcon />
+          <span>{returning ? 'Roll next article' : 'Roll your first article'}</span>
+          <Arrow direction="right" />
+        </button>
+        {rollError && <p className="form-error roll-error" role="alert">{rollError}</p>}
+        {quizAvailable === false && (
+          <p className="home-notice" role="status">
+            Recall checks are unavailable right now, so rounds cannot be scored. You can still read.
+          </p>
+        )}
       </section>
 
-      <section className="intake-form" aria-label="Prepare a reading">
-        <div className="roulette-launch">
-          <div className="roulette-intro">
+      {returning ? (
+        <section className="home-standing" aria-label="Your standing">
+          <RankBar standing={standing} />
+          <div className="standing-grid">
             <div>
-              <p className="section-label">Your next read</p>
-              <h2>Let Wikipedia decide.</h2>
+              <span>Streak</span>
+              <strong>{standing.streak}</strong>
             </div>
-            <p>A random article from English Wikipedia, cleared of everything you do not need to read.</p>
-          </div>
-          <button className="roulette-button" type="button" onClick={onRoll} disabled={loading}>
-            <DiceIcon />
-            <span>Roll Wikipedia</span>
-            <Arrow direction="right" />
-          </button>
-          {rouletteError && <p className="form-error roulette-error" role="alert">{rouletteError}</p>}
-        </div>
-
-        <div className="own-source">
-          <div className="source-divider"><span>Or choose your own</span></div>
-          <label className="field-label">
-            Link or text
-            <textarea
-              value={source}
-              onChange={(event) => setSource(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) void prepare();
-              }}
-              placeholder="Paste a link or the text itself…"
-              rows={5}
-              aria-invalid={Boolean(error)}
-            />
-          </label>
-          <div className="form-actions">
-            <button className="quiet-button source-submit" type="button" onClick={() => void prepare()} disabled={loading}>
-              {loading ? 'Preparing your reading…' : 'Prepare reading'}
-            </button>
-            <span>⌘ Enter</span>
-          </div>
-          {error && <p className="form-error" role="alert">{error}</p>}
-          {loading && (
-            <div className="extracting-lines" aria-hidden="true">
-              <i /><i /><i />
+            <div>
+              <span>Best clean speed</span>
+              <strong>{standing.bestClean ?? 'none yet'}</strong>
+              {standing.bestClean !== null && <small>wpm</small>}
             </div>
-          )}
-        </div>
-      </section>
+            <div>
+              <span>Rounds</span>
+              <strong>{standing.rounds}</strong>
+            </div>
+          </div>
+          <p className="standing-note">
+            {ceiling
+              ? `You hold ${ceiling.accuracy}% recall at ${ceiling.tier.name} (${ceiling.tier.wpm} wpm). Try the tier above it.`
+              : 'Play two rounds at the same speed to establish a reliable ceiling.'}
+          </p>
+        </section>
+      ) : (
+        <section className="home-rules" aria-label="How a round works">
+          <ol>
+            <li><b>Roll</b> a random article. No peeking at it first.</li>
+            <li><b>Bet</b> a speed. Faster pays more per correct answer.</li>
+            <li><b>Read</b> behind a boundary that advances on its own. No slowing down.</li>
+            <li><b>Answer</b> four questions. All four pays a bonus and extends your streak.</li>
+          </ol>
+        </section>
+      )}
     </main>
   );
 }
 
 function RollTransition({ title }: { title: string }) {
   return (
-    <main className="workspace roll-workspace" aria-live="polite" aria-label="Choosing a Wikipedia article">
+    <main className="workspace roll-workspace" aria-live="polite" aria-label="Rolling an article">
       <RollingDie />
       <div className="roll-copy">
-        <p className="section-label">Wikipedia roulette</p>
-        <h1>{title || 'Rolling English Wikipedia…'}</h1>
-        <p>{title ? 'The article is chosen. Removing page clutter now.' : 'One article. No peeking.'}</p>
+        <p className="section-label">Rolling</p>
+        <h1>{title || 'Choosing an article…'}</h1>
+        <p>{title ? 'Clearing the page furniture now.' : 'One article. No peeking.'}</p>
       </div>
+    </main>
+  );
+}
+
+function BetScreen({
+  article,
+  rounds,
+  selectedTier,
+  onSelectTier,
+  onStart,
+  onReroll,
+}: {
+  article: ArticleContent;
+  rounds: GameRound[];
+  selectedTier: SpeedTier;
+  onSelectTier: (tier: SpeedTier) => void;
+  onStart: () => void;
+  onReroll: () => void;
+}) {
+  const words = useMemo(() => countWords(article.paragraphs), [article.paragraphs]);
+  const startRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => startRef.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    const handleKeys = (event: KeyboardEvent) => {
+      const index = Number(event.key) - 1;
+      if (Number.isInteger(index) && index >= 0 && index < SPEED_TIERS.length) {
+        event.preventDefault();
+        onSelectTier(SPEED_TIERS[index]);
+        return;
+      }
+      const current = SPEED_TIERS.findIndex((tier) => tier.id === selectedTier.id);
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        onSelectTier(SPEED_TIERS[Math.min(SPEED_TIERS.length - 1, current + 1)]);
+      }
+      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+        event.preventDefault();
+        onSelectTier(SPEED_TIERS[Math.max(0, current - 1)]);
+      }
+    };
+    window.addEventListener('keydown', handleKeys);
+    return () => window.removeEventListener('keydown', handleKeys);
+  }, [onSelectTier, selectedTier.id]);
+
+  return (
+    <main className="workspace bet-workspace" aria-labelledby="bet-title">
+      <header className="bet-header">
+        <p className="section-label">Your article</p>
+        <h1 id="bet-title" data-length={article.title.length > 44 ? 'long' : article.title.length > 24 ? 'medium' : 'short'}>
+          {article.title}
+        </h1>
+        <p className="bet-meta">{words.toLocaleString()} words · English Wikipedia</p>
+      </header>
+
+      <section className="bet-ladder" aria-label="Choose your speed">
+        <div className="bet-ladder-head">
+          <h2>Bet a speed</h2>
+          <p>
+            Locked once the round starts. Four correct at {selectedTier.name} pays{' '}
+            <b>{cleanSweepPayout(selectedTier.wpm).toLocaleString()}</b>.
+          </p>
+        </div>
+        <ul>
+          {SPEED_TIERS.map((tier, index) => {
+            const record = recordForWpm(rounds, tier.wpm);
+            const selected = tier.id === selectedTier.id;
+            const risky = record !== undefined && record.rounds > 0 && record.accuracy !== null && record.accuracy < 50;
+            return (
+              <li key={tier.id}>
+                <button
+                  type="button"
+                  aria-pressed={selected}
+                  className={`tier-option${selected ? ' selected' : ''}`}
+                  onClick={() => onSelectTier(tier)}
+                  onDoubleClick={onStart}
+                >
+                  <kbd aria-hidden="true">{index + 1}</kbd>
+                  <span className="tier-name">{tier.name}</span>
+                  <span className="tier-wpm"><b>{tier.wpm}</b> wpm</span>
+                  <span className="tier-multiplier">×{speedMultiplier(tier.wpm).toFixed(1)}</span>
+                  <span className="tier-clock">{formatClock(estimatedSeconds(words, tier.wpm))}</span>
+                  <span className={`tier-record${risky ? ' risky' : ''}`}>
+                    {record && record.rounds > 0
+                      ? `${record.accuracy}% over ${record.rounds} ${record.rounds === 1 ? 'round' : 'rounds'}`
+                      : 'untested'}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      <footer className="bet-actions">
+        <button ref={startRef} className="primary-button bet-start" type="button" onClick={onStart}>
+          Start at {selectedTier.wpm} wpm
+        </button>
+        <button className="quiet-button" type="button" onClick={onReroll}>Roll a different article</button>
+      </footer>
     </main>
   );
 }
@@ -291,33 +454,64 @@ function findActiveLine(lines: ReadingLine[], activeWord: number): number {
   return 0;
 }
 
+/**
+ * The comfortable measure for continuous reading. A `ch` unit is the width of
+ * a zero, which is far wider than an average letter, so a `72ch` column
+ * actually sets about ninety-four characters. The measure is derived from the
+ * article's own text instead, which stays correct across fonts and languages.
+ */
+const TARGET_CHARACTERS = 68;
+
+function readingMeasure(sample: string, available: number, measure: (text: string) => number): number {
+  if (!sample) return available;
+  const averageCharacter = measure(sample) / sample.length;
+  if (!Number.isFinite(averageCharacter) || averageCharacter <= 0) return available;
+  return Math.min(available, Math.round(TARGET_CHARACTERS * averageCharacter));
+}
+
 function useWrappedLines(paragraphs: string[]) {
   const copyRef = useRef<HTMLDivElement>(null);
   const [lines, setLines] = useState<ReadingLine[]>(() => fallbackWrap(paragraphs));
 
   useLayoutEffect(() => {
     const element = copyRef.current;
-    if (!element) return;
+    const stage = element?.parentElement;
+    if (!element || !stage) return;
     let frame = 0;
+    let lastAvailable = -1;
 
-    const update = () => {
+    const update = (force = false) => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const styles = getComputedStyle(element);
+        const stageStyles = getComputedStyle(stage);
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
         if (!context) return;
         context.font = `${styles.fontWeight} ${styles.fontSize} ${styles.fontFamily}`;
-        const width = element.clientWidth;
+        const available = stage.clientWidth
+          - Number.parseFloat(stageStyles.paddingLeft)
+          - Number.parseFloat(stageStyles.paddingRight)
+          - Number.parseFloat(styles.marginLeft)
+          - Number.parseFloat(styles.marginRight);
+        if (!force && available === lastAvailable) return;
+        lastAvailable = available;
+        if (available <= 0) return;
+
+        const sample = paragraphs.join(' ').slice(0, 600);
+        const width = readingMeasure(sample, available, (value) => context.measureText(value).width);
+        element.style.width = `${width}px`;
         const next = wrapParagraphs(paragraphs, width, (value) => context.measureText(value).width);
         if (next.length > 0) setLines(next);
       });
     };
 
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    void document.fonts.ready.then(update);
-    update();
+    // The stage is observed rather than the copy, because the copy's own width
+    // is the output of this measurement and observing it would loop.
+    const observer = new ResizeObserver(() => update());
+    observer.observe(stage);
+    void document.fonts.ready.then(() => update(true));
+    update(true);
 
     return () => {
       cancelAnimationFrame(frame);
@@ -359,7 +553,7 @@ function ReaderControl({
     <button className={`reader-control ${className}`} type="button" onClick={onClick} disabled={disabled}>
       <Arrow direction={direction} />
       <span>{label}</span>
-      <kbd>{keyLabel}</kbd>
+      {keyLabel && <kbd>{keyLabel}</kbd>}
     </button>
   );
 }
@@ -367,39 +561,29 @@ function ReaderControl({
 function Reader({
   article,
   articleId,
-  sourceType,
+  committedWpm,
   storedLocally,
-  initialWord,
-  initiallyRunning = false,
-  onExit,
+  onAbandon,
   onFinish,
-  onPositionChange,
 }: {
   article: ArticleContent;
   articleId: string;
-  sourceType: SourceType;
+  committedWpm: number;
   storedLocally: boolean;
-  initialWord: number;
-  initiallyRunning?: boolean;
-  onExit: () => void;
-  onFinish: (session: CompletedSession) => void | Promise<void>;
-  onPositionChange: (word: number) => void;
+  onAbandon: () => void;
+  onFinish: (round: PendingRound) => void | Promise<void>;
 }) {
   const { copyRef, lines } = useWrappedLines(article.paragraphs);
-  const [activeWord, setActiveWord] = useState(() => Math.max(0, initialWord));
-  const [wpm, setWpm] = useState(() => clamp(loadLocalPace(), MIN_WPM, MAX_WPM));
-  const [startWpm, setStartWpm] = useState(wpm);
-  const [startWord, setStartWord] = useState(activeWord);
-  const [startedAt, setStartedAt] = useState<Date | null>(() => initiallyRunning ? new Date() : null);
-  const [running, setRunning] = useState(initiallyRunning);
+  const [activeWord, setActiveWord] = useState(0);
+  const [startedAt] = useState(() => new Date());
   const [curtainHeight, setCurtainHeight] = useState(0);
   const [futureCurtainTop, setFutureCurtainTop] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [documentPaused, setDocumentPaused] = useState(() => document.hidden);
+  const [userPaused, setUserPaused] = useState(false);
   const activeElement = useRef<HTMLButtonElement>(null);
   const visibleEndElement = useRef<HTMLButtonElement>(null);
   const readerStage = useRef<HTMLDivElement>(null);
-  const startButton = useRef<HTMLButtonElement>(null);
   const finished = useRef(false);
   const activeIndex = findActiveLine(lines, activeWord);
   const visibleEndIndex = Math.min(activeIndex + 2, Math.max(0, lines.length - 1));
@@ -408,21 +592,10 @@ function Reader({
   const pausedAt = useRef<number | null>(null);
   const pausedDuration = useRef(0);
   const totalWords = countWords(article.paragraphs);
-  const passedWords = activeLine?.startWord ?? 0;
-  const elapsedMilliseconds = startedAt
-    ? Date.now() - startedAt.getTime() - pausedDuration.current - (pausedAt.current ? Date.now() - pausedAt.current : 0)
-    : 0;
-  const actualSeconds = Math.max(1, Math.round(elapsedMilliseconds / 1000));
-  const actualWpm = Math.round((Math.max(0, passedWords - startWord) / actualSeconds) * 60);
-  const lineDuration = activeLine ? clamp((activeLine.text.split(/\s+/).length / wpm) * 60, 0.9, 12) : 2;
-
-  useEffect(() => {
-    if (initiallyRunning) return;
-    const frame = requestAnimationFrame(() => {
-      startButton.current?.focus({ preventScroll: true });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [initiallyRunning]);
+  const tier = tierForWpm(committedWpm);
+  const lineDuration = activeLine ? clamp((activeLine.text.split(/\s+/).length / committedWpm) * 60, 0.9, 12) : 2;
+  const progress = lines.length > 1 ? Math.round((activeIndex / (lines.length - 1)) * 100) : 0;
+  const wordsLeft = Math.max(0, totalWords - (activeLine?.startWord ?? 0));
 
   useLayoutEffect(() => {
     let frame = 0;
@@ -470,18 +643,6 @@ function Reader({
     return () => cancelAnimationFrame(frame);
   }, [activeIndex, lines, visibleEndIndex]);
 
-  useEffect(() => {
-    if (activeLine) onPositionChange(activeLine.startWord);
-  }, [activeLine, onPositionChange]);
-
-  useEffect(() => {
-    saveLocalPace(wpm);
-  }, [wpm]);
-
-  const adjustPace = useCallback((delta: number) => {
-    setWpm((value) => clamp(value + delta, MIN_WPM, MAX_WPM));
-  }, []);
-
   const selectLine = useCallback((startWord: number) => {
     setActiveWord(startWord);
     setTimerRevision((value) => value + 1);
@@ -492,151 +653,140 @@ function Reader({
     if (lines[next]) selectLine(lines[next].startWord);
   }, [activeIndex, lines, selectLine]);
 
-  const begin = useCallback(() => {
-    const now = new Date();
-    finished.current = false;
-    pausedAt.current = document.hidden ? now.getTime() : null;
-    pausedDuration.current = 0;
-    setStartWpm(wpm);
-    setStartWord(activeLine?.startWord ?? activeWord);
-    setStartedAt(now);
-    setRunning(true);
-    setTimerRevision((value) => value + 1);
-    requestAnimationFrame(() => activeElement.current?.focus({ preventScroll: true }));
-  }, [activeLine, activeWord, wpm]);
-
   const finish = useCallback(() => {
-    if (finished.current || !startedAt) return;
+    if (finished.current) return;
     finished.current = true;
     const completedAt = new Date();
     const pendingPause = pausedAt.current ? completedAt.getTime() - pausedAt.current : 0;
-    const durationMilliseconds = completedAt.getTime() - startedAt.getTime() - pausedDuration.current - pendingPause;
-    const durationSeconds = Math.max(1, Math.round(durationMilliseconds / 1000));
-    const completedWords = Math.max(0, totalWords - startWord);
-    onFinish({
+    const milliseconds = completedAt.getTime() - startedAt.getTime() - pausedDuration.current - pendingPause;
+    void onFinish({
       id: makeId(),
       title: article.title,
       sourceUrl: article.sourceUrl,
-      sourceType,
-      wordCount: completedWords,
+      wordCount: totalWords,
+      committedWpm,
       startedAt: startedAt.toISOString(),
       completedAt: completedAt.toISOString(),
-      durationSeconds,
-      startWpm,
-      endWpm: wpm,
-      ...(completedWords > 0 ? { measuredWpm: Math.max(1, Math.round((completedWords / durationSeconds) * 60)) } : {}),
-      totalLines: lines.length,
+      durationSeconds: Math.max(1, Math.round(milliseconds / 1000)),
       ...(storedLocally ? { articleId } : {}),
     });
-  }, [article.sourceUrl, article.title, articleId, lines.length, onFinish, sourceType, startWord, startWpm, startedAt, storedLocally, totalWords, wpm]);
+  }, [article.sourceUrl, article.title, articleId, committedWpm, onFinish, startedAt, storedLocally, totalWords]);
 
   useEffect(() => {
-    const handleVisibility = () => {
-      const now = Date.now();
-      if (document.hidden) {
-        if (running && pausedAt.current === null) pausedAt.current = now;
-        setDocumentPaused(true);
-      } else {
-        if (pausedAt.current !== null) pausedDuration.current += now - pausedAt.current;
-        pausedAt.current = null;
-        setDocumentPaused(false);
-        if (running) setTimerRevision((value) => value + 1);
-      }
-    };
+    const handleVisibility = () => setDocumentPaused(document.hidden);
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [running]);
+  }, []);
+
+  const clockStopped = documentPaused || userPaused;
+
+  // One accounting for every reason the clock stops, so a hidden tab and a
+  // deliberate pause cannot double-count or cancel each other out.
+  useEffect(() => {
+    if (clockStopped) {
+      if (pausedAt.current === null) pausedAt.current = Date.now();
+      return;
+    }
+    if (pausedAt.current !== null) {
+      pausedDuration.current += Date.now() - pausedAt.current;
+      pausedAt.current = null;
+      setTimerRevision((value) => value + 1);
+    }
+  }, [clockStopped]);
+
+  const togglePause = useCallback(() => setUserPaused((value) => !value), []);
 
   useEffect(() => {
-    if (!activeLine || !running || documentPaused) return;
+    if (!activeLine || clockStopped) return;
     const timer = window.setTimeout(() => {
       if (activeIndex === lines.length - 1) finish();
       else moveLine(1);
     }, lineDuration * 1_000);
     return () => window.clearTimeout(timer);
-  }, [activeIndex, activeLine, documentPaused, finish, lineDuration, lines.length, moveLine, running, timerRevision]);
+  }, [activeIndex, activeLine, clockStopped, finish, lineDuration, lines.length, moveLine, timerRevision]);
 
   useEffect(() => {
     const handleKeys = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.matches('input, textarea, [contenteditable="true"]')) return;
-      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onAbandon();
+        return;
+      }
+      if (event.key === ' ') {
+        event.preventDefault();
+        togglePause();
+        return;
+      }
+      if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
       event.preventDefault();
-      if (event.key === 'ArrowLeft') adjustPace(-WPM_STEP);
-      if (event.key === 'ArrowRight') adjustPace(WPM_STEP);
-      if (event.key === 'ArrowUp' && running) moveLine(-1);
+      if (event.key === 'ArrowUp') moveLine(-1);
       if (event.key === 'ArrowDown') {
-        if (!running) return;
         if (activeIndex === lines.length - 1) finish();
         else moveLine(1);
       }
     };
     window.addEventListener('keydown', handleKeys);
     return () => window.removeEventListener('keydown', handleKeys);
-  }, [activeIndex, adjustPace, finish, lines.length, moveLine, running]);
+  }, [activeIndex, finish, lines.length, moveLine, onAbandon, togglePause]);
 
   const atEnd = activeIndex === lines.length - 1;
-  const nextLabel = atEnd ? (running ? 'Finish read' : 'Last line') : 'Next line';
   const nextAction = atEnd ? finish : () => moveLine(1);
-  const paceDelta = wpm - startWpm;
-  const timerStopped = !running || documentPaused;
 
   return (
-    <div className={`reader-shell${timerStopped ? ' timer-paused' : ''}`}>
+    <div className={`reader-shell${clockStopped ? ' timer-paused' : ''}`}>
       <aside className="reader-utility">
-        <Wordmark onClick={onExit} />
+        <Wordmark onClick={onAbandon} />
         <div className="reader-source">
-          <p className="measurement-label">Source</p>
+          <p className="measurement-label">Reading</p>
           <h1>
             {article.sourceUrl ? (
               <a href={article.sourceUrl} target="_blank" rel="noreferrer">{article.title}</a>
             ) : article.title}
           </h1>
-          {(article.byline || article.siteName) && (
-            <p>{[article.byline, article.siteName].filter(Boolean).join(' · ')}</p>
-          )}
         </div>
-        <div className="reader-measurements" aria-label="Reading measurements">
-          <div>
-            <span className="measurement-label">Pace</span>
-            <strong>{wpm}</strong><small>wpm</small>
-          </div>
-          <div>
-            <span className="measurement-label">Line</span>
-            <strong>{activeIndex + 1}</strong><small>/ {lines.length}</small>
-          </div>
+        <div className="committed-speed">
+          <span className="measurement-label">Locked at</span>
+          <strong>{committedWpm}</strong><small>wpm</small>
+          <em>{tier.name} · ×{speedMultiplier(committedWpm).toFixed(1)}</em>
         </div>
-        <p className="live-evidence">
-          {!running ? 'Ready · timer begins when you start' : paceDelta === 0 ? 'Starting pace' : `${paceDelta > 0 ? '+' : ''}${paceDelta} wpm from start`}
-          {running && passedWords - startWord > 8 && actualSeconds >= 15 && actualWpm > 0 ? <span> · {actualWpm} actual</span> : null}
-        </p>
+        <div className="reader-progress">
+          <div className="reader-progress-track" aria-hidden="true">
+            <i style={{ '--read-fraction': `${progress}%` } as CSSProperties} />
+          </div>
+          <p><b>{progress}%</b> · {formatClock(estimatedSeconds(wordsLeft, committedWpm))} left</p>
+        </div>
         <div className="desktop-reader-controls">
-          <ReaderControl label="Slower" keyLabel="←" direction="left" onClick={() => adjustPace(-WPM_STEP)} disabled={wpm === MIN_WPM} />
-          <ReaderControl label="Faster" keyLabel="→" direction="right" onClick={() => adjustPace(WPM_STEP)} disabled={wpm === MAX_WPM} />
-          <ReaderControl label="Previous line" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={!running || activeIndex === 0} />
-          <ReaderControl label={nextLabel} keyLabel="↓" direction="down" onClick={nextAction} disabled={!running} />
+          <ReaderControl label="Previous line" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0} />
+          <ReaderControl label={atEnd ? 'Finish round' : 'Next line'} keyLabel="↓" direction="down" onClick={nextAction} />
+          <button className="reader-control pause-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
+            <PauseIcon paused={userPaused} />
+            <span>{userPaused ? 'Resume' : 'Pause'}</span>
+            <kbd>Space</kbd>
+          </button>
         </div>
         <div className="reader-utility-footer">
-          <button className="quiet-button" type="button" onClick={onExit}>Leave reading</button>
-          <span>{storedLocally ? 'Text and progress save locally' : 'Temporary read · storage unavailable'}</span>
+          <button className="quiet-button" type="button" onClick={onAbandon}>Abandon round</button>
+          <span>{userPaused ? 'Paused' : 'Speed is locked for this round'}</span>
         </div>
       </aside>
 
       <main className="reader-main" aria-label={`Reading ${article.title}`}>
         <div className="mobile-reader-status">
-          <button type="button" onClick={onExit} aria-label="Leave reading">×</button>
-          <span><b>{wpm}</b> wpm</span>
-          <span><b>{activeIndex + 1}</b> / {lines.length}</span>
+          <button type="button" onClick={onAbandon} aria-label="Abandon round">×</button>
+          <span><b>{committedWpm}</b> wpm</span>
+          <span><b>{progress}</b>%</span>
         </div>
         <div className="reader-stage" ref={readerStage}>
           <div className="reading-curtain" style={{ height: curtainHeight }} aria-hidden="true">
-            <span>read</span>
+            <span>{progress}% read</span>
           </div>
           <div className="reading-future-curtain" style={{ top: futureCurtainTop }} aria-hidden="true" />
           <div className="reader-copy" ref={copyRef}>
             {lines.map((line, index) => {
               const active = index === activeIndex;
-              const visible = running && index >= activeIndex && index <= visibleEndIndex;
+              const visible = index >= activeIndex && index <= visibleEndIndex;
               return (
                 <button
                   key={line.id}
@@ -652,80 +802,117 @@ function Reader({
                   aria-current={active ? 'true' : undefined}
                   aria-label={`${active ? 'Current line: ' : 'Move to line: '}${line.text}`}
                 >
-                  {active && <Countdown duration={lineDuration} identity={`${line.id}-${wpm}-${timerRevision}-${running}`} />}
+                  {active && <Countdown duration={lineDuration} identity={`${line.id}-${timerRevision}`} />}
                   {line.text}
                 </button>
               );
             })}
             <div className="article-end">
-              <span>End of text</span>
-              {article.sourceUrl && (
-                <a href={article.sourceUrl} target="_blank" rel="noreferrer">Open original source</a>
-              )}
-              {atEnd && running && (
-                <button className="primary-button" type="button" onClick={finish}>Finish and save</button>
-              )}
+              <span>End of article</span>
+              {atEnd && <button className="primary-button" type="button" onClick={finish}>Finish round</button>}
             </div>
           </div>
-          {!running && (
-            <section className="reader-start-gate" aria-labelledby="reader-start-title">
-              <div>
-                <p>Ready to read</p>
-                <h2 id="reader-start-title">{article.title}</h2>
-                <button ref={startButton} className="reader-start-orb" type="button" onClick={begin} aria-label="Start reading">
-                  Start
-                </button>
-                <span>{wpm} wpm · {lines.length} lines</span>
-              </div>
-            </section>
-          )}
         </div>
       </main>
 
-      {running && (
-        <div className="mobile-reader-controls" aria-label="Reading controls">
-          <ReaderControl className="pace-control" label="Slower" keyLabel="" direction="left" onClick={() => adjustPace(-WPM_STEP)} disabled={wpm === MIN_WPM} />
-          <ReaderControl className="pace-control" label="Faster" keyLabel="" direction="right" onClick={() => adjustPace(WPM_STEP)} disabled={wpm === MAX_WPM} />
-          <ReaderControl label="Previous" keyLabel="" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0} />
-          <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="" direction="down" onClick={nextAction} />
+      <div className="mobile-reader-controls" aria-label="Reading controls">
+        <ReaderControl label="Previous" keyLabel="" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0} />
+        <button className="reader-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
+          <PauseIcon paused={userPaused} />
+          <span>{userPaused ? 'Resume' : 'Pause'}</span>
+        </button>
+        <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="" direction="down" onClick={nextAction} />
+      </div>
+    </div>
+  );
+}
+
+function Scoreboard({ breakdown, wpm, correct, questions }: {
+  breakdown: ScoreBreakdown;
+  wpm: number;
+  correct: number;
+  questions: number;
+}) {
+  const total = useCountUp(breakdown.total);
+  return (
+    <div className={`scoreboard${breakdown.passed ? ' passed' : ' failed'}`}>
+      <p className="section-label">
+        {breakdown.passed ? (breakdown.cleanSweep ? 'Clean sweep' : 'Round passed') : 'Round failed'}
+      </p>
+      <dl className="score-tally">
+        <div>
+          <dt>{correct} correct × {wpm} wpm</dt>
+          <dd>{breakdown.base.toLocaleString()}</dd>
         </div>
+        {breakdown.cleanSweep && (
+          <div className="score-bonus">
+            <dt>Clean sweep <em>×1.5</em></dt>
+            <dd>+{breakdown.cleanSweepBonus.toLocaleString()}</dd>
+          </div>
+        )}
+        {breakdown.streak > 0 && (
+          <div className="score-bonus">
+            <dt>Streak {breakdown.streak} <em>×{breakdown.streakMultiplier.toFixed(1)}</em></dt>
+            <dd>+{breakdown.streakBonus.toLocaleString()}</dd>
+          </div>
+        )}
+        <div className="score-total">
+          <dt>Round score</dt>
+          <dd>{total.toLocaleString()}</dd>
+        </div>
+      </dl>
+      {!breakdown.passed && (
+        <p className="score-note">
+          {correct} of {questions} is below the three needed to pass, so the streak resets.
+        </p>
       )}
     </div>
   );
 }
 
-function Quiz({
-  session,
-  quiz,
+function RoundView({
+  round,
+  roundNumber,
+  newBest,
+  standing,
   status,
   error,
   onRetry,
-  onProgress,
   onRollNext,
-  onComplete,
+  onProgress,
+  onSubmit,
 }: {
-  session: CompletedSession;
-  quiz?: ReadingQuiz;
+  round: GameRound;
+  roundNumber: number;
+  newBest: boolean;
+  standing: PlayerStanding;
   status: QuizStatus;
   error: string;
   onRetry: () => void;
-  onProgress: () => void;
   onRollNext: () => void;
-  onComplete: (answers: number[], score: number, total: number) => void;
+  onProgress: () => void;
+  onSubmit: (answers: number[]) => void;
 }) {
+  const quiz = round.quiz;
+  const submitted = round.quizAnswers !== undefined;
   const [answers, setAnswers] = useState<Record<number, number>>(() => Object.fromEntries(
-    (session.quizAnswers ?? []).map((answer, index) => [index, answer]),
+    (round.quizAnswers ?? []).map((answer, index) => [index, answer]),
   ));
-  const [submitted, setSubmitted] = useState(() => session.quizScore !== undefined && session.quizAnswers !== undefined);
   const answeredCount = Object.keys(answers).length;
-  const score = session.quizScore ?? (submitted && quiz ? scoreQuiz(quiz, answers) : null);
+
+  const breakdown = useMemo(
+    () => (submitted
+      ? scoreRound({ correct: round.correct, total: round.questions, wpm: round.committedWpm, streak: round.streakBefore })
+      : null),
+    [round.committedWpm, round.correct, round.questions, round.streakBefore, submitted],
+  );
 
   if (status === 'loading') {
     return (
-      <main className="workspace quiz-workspace quiz-pending" aria-live="polite">
-        <p className="section-label">Read complete</p>
-        <h1>Making your recall check…</h1>
-        <p>GPT-5.6 Luna is turning the reading into four grounded questions.</p>
+      <main className="workspace round-workspace round-pending" aria-live="polite">
+        <p className="section-label">Round complete</p>
+        <h1>Writing your recall check…</h1>
+        <p>Four questions, drawn only from the article you just read.</p>
         <div className="quiz-loading-lines" aria-hidden="true"><i /><i /><i /><i /></div>
       </main>
     );
@@ -733,14 +920,14 @@ function Quiz({
 
   if (status === 'error' || !quiz) {
     return (
-      <main className="workspace quiz-workspace quiz-pending">
-        <p className="section-label">Read complete</p>
-        <h1>Your reading is saved.</h1>
-        <p className="quiz-error" role="alert">{error || 'The quiz could not be restored.'}</p>
+      <main className="workspace round-workspace round-pending">
+        <p className="section-label">Round complete</p>
+        <h1>This round could not be scored.</h1>
+        <p className="quiz-error" role="alert">{error || 'The recall check could not be created.'}</p>
         <div className="quiz-actions">
-          {status === 'error' && <button className="primary-button" type="button" onClick={onRetry}>Try the quiz again</button>}
+          {status === 'error' && <button className="primary-button" type="button" onClick={onRetry}>Try again</button>}
           <button className="quiet-button" type="button" onClick={onRollNext}>Roll another article</button>
-          <button className="quiet-button" type="button" onClick={onProgress}>See stats</button>
+          <button className="quiet-button" type="button" onClick={onProgress}>See progress</button>
         </div>
       </main>
     );
@@ -748,34 +935,55 @@ function Quiz({
 
   const submit = () => {
     if (answeredCount !== quiz.questions.length) return;
-    const nextScore = scoreQuiz(quiz, answers);
-    const orderedAnswers = quiz.questions.map((_, index) => answers[index]);
-    setSubmitted(true);
-    onComplete(orderedAnswers, nextScore, quiz.questions.length);
+    onSubmit(quiz.questions.map((_, index) => answers[index]));
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   return (
-    <main className="workspace quiz-workspace">
-      <header className="quiz-header">
+    <main className="workspace round-workspace">
+      <header className="round-header">
         <div>
-          <p className="section-label">Recall check · {session.title}</p>
+          <p className="section-label">
+            Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm
+          </p>
           <h1>{submitted ? 'Here’s what stayed.' : 'What stayed with you?'}</h1>
-          <p>{submitted ? 'Review the grounded answer for each question.' : 'Four questions from the text, created only after you finished reading.'}</p>
-        </div>
-        <div className="quiz-result-column">
-          <div className="quiz-measure" aria-live="polite">
-            <span>{submitted ? 'Score' : 'Answered'}</span>
-            <strong>{submitted ? score : answeredCount}</strong>
-            <small>/ {quiz.questions.length}</small>
-          </div>
-          {submitted && (
-            <button className="primary-button quiz-next-button" type="button" onClick={onRollNext}>
-              Roll next article
-            </button>
+          {submitted ? (
+            <p className="round-summary">
+              <b>{round.correct} of {round.questions}</b> on {round.title} at {round.committedWpm} wpm.
+              {' '}{round.passed
+                ? `Your streak is now ${round.streakBefore + 1}.`
+                : 'Streak reset.'}
+              {newBest && <em> New best clean speed.</em>}
+            </p>
+          ) : (
+            <p>Four questions from the article. Three correct passes the round.</p>
           )}
         </div>
+        {submitted && breakdown ? (
+          <Scoreboard
+            breakdown={breakdown}
+            wpm={round.committedWpm}
+            correct={round.correct}
+            questions={round.questions}
+          />
+        ) : (
+          <div className="quiz-measure" aria-live="polite">
+            <span>Answered</span>
+            <strong>{answeredCount}</strong>
+            <small>/ {quiz.questions.length}</small>
+          </div>
+        )}
       </header>
+
+      {submitted && (
+        <section className="round-standing" aria-label="Your standing">
+          <RankBar standing={standing} />
+          <div className="round-next">
+            <button className="primary-button" type="button" onClick={onRollNext}>Roll next article</button>
+            <button className="quiet-button" type="button" onClick={onProgress}>See progress</button>
+          </div>
+        </section>
+      )}
 
       <form className="quiz-form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
         {quiz.questions.map((question, questionIndex) => (
@@ -807,15 +1015,14 @@ function Quiz({
         ))}
 
         <footer className="quiz-footer">
-          <p>Generated by GPT-5.6 Luna from this reading. Your score stays in this browser.</p>
+          <p>Questions generated from this article. Your scores stay in this browser.</p>
           <div className="quiz-actions">
             {!submitted && (
               <button className="primary-button" type="submit" disabled={answeredCount !== quiz.questions.length}>
-                Check my answers
+                Lock in answers
               </button>
             )}
-            {submitted && <button className="primary-button" type="button" onClick={onRollNext}>Roll another article</button>}
-            <button className="quiet-button" type="button" onClick={onProgress}>See stats</button>
+            {submitted && <button className="primary-button" type="button" onClick={onRollNext}>Roll next article</button>}
           </div>
         </footer>
       </form>
@@ -823,124 +1030,122 @@ function Quiz({
   );
 }
 
-function History({
-  sessions,
-  onNewRead,
+function Progress({
+  rounds,
+  standing,
   onRoll,
-  onRerun,
-  onQuiz,
-  rerunError,
+  onReview,
 }: {
-  sessions: CompletedSession[];
-  onNewRead: () => void;
+  rounds: GameRound[];
+  standing: PlayerStanding;
   onRoll: () => void;
-  onRerun: (session: CompletedSession) => void;
-  onQuiz: (session: CompletedSession) => void;
-  rerunError: string;
+  onReview: (round: GameRound) => void;
 }) {
-  const ordered = [...sessions].sort((a, b) => b.completedAt.localeCompare(a.completedAt));
-  const latest = ordered[0];
-  const first = ordered.at(-1);
-  const paceChange = latest && first ? sessionSpeed(latest) - sessionSpeed(first) : 0;
-  const totalWords = ordered.reduce((sum, session) => sum + session.wordCount, 0);
-  const scored = ordered.filter((session) => session.quizScore !== undefined && Boolean(session.quizTotal));
-  const correctAnswers = scored.reduce((sum, session) => sum + (session.quizScore ?? 0), 0);
-  const totalAnswers = scored.reduce((sum, session) => sum + (session.quizTotal ?? 0), 0);
-  const overallAccuracy = totalAnswers ? Math.round((correctAnswers / totalAnswers) * 100) : null;
-  const accuracyBands = accuracyBySpeed(ordered);
+  const ordered = useMemo(
+    () => [...rounds].sort((a, b) => b.completedAt.localeCompare(a.completedAt)),
+    [rounds],
+  );
+  const records = useMemo(() => tierRecords(rounds), [rounds]);
+  const ceiling = useMemo(() => reliableCeiling(rounds), [rounds]);
+  const best = useMemo(() => bestStreak(rounds), [rounds]);
 
   return (
-    <main className="workspace history-workspace">
-      <header className="history-header">
+    <main className="workspace progress-workspace">
+      <header className="progress-header">
         <div>
-          <p className="section-label">Stats &amp; history</p>
-          <h1>Your Wikipedia trail.</h1>
-          <p>Every completed reading and quiz score, saved in this browser.</p>
+          <p className="section-label">Progress</p>
+          <h1>{ordered.length === 0 ? 'Nothing played yet.' : 'Your speed record.'}</h1>
         </div>
-        <div className="history-header-actions">
-          <button className="primary-button" type="button" onClick={onRoll}>Roll a new article</button>
-          <button className="quiet-button" type="button" onClick={onNewRead}>Use your own text</button>
-        </div>
+        {ordered.length > 0 && (
+          <button className="primary-button" type="button" onClick={onRoll}>Roll next article</button>
+        )}
       </header>
-      {rerunError && <p className="form-error history-error" role="alert">{rerunError}</p>}
 
       {ordered.length === 0 ? (
-        <section className="history-empty">
-          <span className="empty-boundary" aria-hidden="true" />
-          <h2>Your first article is one roll away.</h2>
-          <p>Finish it and its pace, quiz score, and title will appear here.</p>
-          <button className="primary-button" type="button" onClick={onRoll}>Roll Wikipedia</button>
+        <section className="progress-empty">
+          <span className="empty-boundary" aria-hidden="true"><i /><i /><i /></span>
+          <h2>Your first round is one roll away.</h2>
+          <p>Play two rounds at the same speed and this page will show where your comprehension starts to break.</p>
+          <button className="primary-button" type="button" onClick={onRoll}>Roll an article</button>
         </section>
       ) : (
         <>
-          <section className="summary-strip" aria-label="Progress summary">
-            <div><span>Articles read</span><strong>{ordered.length}</strong></div>
-            <div><span>Quiz accuracy</span><strong>{overallAccuracy ?? '—'}</strong>{overallAccuracy !== null && <small>%</small>}</div>
-            <div><span>Latest speed</span><strong>{sessionSpeed(latest)}</strong><small>wpm</small></div>
+          <section className="progress-standing" aria-label="Standing">
+            <RankBar standing={standing} />
+            <div className="standing-grid wide">
+              <div><span>Rounds</span><strong>{standing.rounds}</strong></div>
+              <div><span>Streak</span><strong>{standing.streak}</strong></div>
+              <div><span>Best streak</span><strong>{best}</strong></div>
+              <div>
+                <span>Best clean speed</span>
+                <strong>{standing.bestClean ?? 'none yet'}</strong>
+                {standing.bestClean !== null && <small>wpm</small>}
+              </div>
+            </div>
           </section>
-          <section className="accuracy-history" aria-labelledby="accuracy-history-title">
+
+          <section className="curve" aria-labelledby="curve-title">
             <header>
-              <h2 id="accuracy-history-title">Recall by speed</h2>
+              <h2 id="curve-title">Comprehension curve</h2>
               <p>
-                {totalWords.toLocaleString()} words read
-                {ordered.length > 1 ? ` · ${paceChange > 0 ? '+' : ''}${paceChange} wpm since your first finish` : ''}
-                {' · '}quiz scores grouped by measured reading speed
+                {ceiling
+                  ? `Reliable through ${ceiling.tier.name} at ${ceiling.tier.wpm} wpm.`
+                  : 'Play a tier twice to make it count as reliable.'}
               </p>
             </header>
-            {accuracyBands.length ? (
-              <div className="accuracy-table">
-                {accuracyBands.map((band) => (
-                  <div className="accuracy-row" key={band.minWpm}>
-                    <span>{band.label} wpm</span>
-                    <div aria-hidden="true"><i style={{ '--accuracy-width': `${band.accuracy}%` } as CSSProperties} /></div>
-                    <strong>{band.accuracy}%</strong>
-                    <small>{band.correct}/{band.total} correct · {band.reads} {band.reads === 1 ? 'quiz' : 'quizzes'}</small>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="accuracy-empty">Complete a quiz to see how recall changes at different speeds.</p>
-            )}
-          </section>
-          <section className="session-history" aria-labelledby="session-history-title">
-            <h2 id="session-history-title">Article log</h2>
-            <div className="session-list">
-              {ordered.map((session, index) => {
-                const speed = sessionSpeed(session);
-                const maxPace = Math.max(...ordered.map(sessionSpeed), 1);
+            <div className="curve-table">
+              {records.map((record) => {
+                const isCeiling = ceiling?.tier.id === record.tier.id;
                 return (
-                  <article className="session-row" key={session.id}>
-                    <div className="session-index">{String(ordered.length - index).padStart(2, '0')}</div>
-                    <div className="session-title">
-                      <h3>
-                        {session.sourceUrl ? (
-                          <a href={session.sourceUrl} target="_blank" rel="noreferrer">{session.title}</a>
-                        ) : session.title}
-                      </h3>
-                      <p>
-                        {new Date(session.completedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                        {session.sourceType === 'wikipedia' ? ' · Wikipedia' : ''}
-                      </p>
+                  <div
+                    className={`curve-row${record.rounds === 0 ? ' untested' : ''}${isCeiling ? ' ceiling' : ''}`}
+                    key={record.tier.id}
+                  >
+                    <span className="curve-tier">{record.tier.name}</span>
+                    <span className="curve-wpm">{record.tier.wpm}</span>
+                    <div className="curve-bar" aria-hidden="true">
+                      <i style={{ '--curve-width': `${record.accuracy ?? 0}%` } as CSSProperties} />
                     </div>
-                    <div className="session-pace">
-                      <span style={{ '--pace-width': `${(speed / maxPace) * 100}%` } as CSSProperties} />
-                      <strong>{speed}</strong><small>wpm</small>
-                    </div>
-                    <div className="session-detail">
-                      <span>
-                        {session.wordCount.toLocaleString()} words · {formatDuration(session.durationSeconds)}
-                        {session.quizScore !== undefined && session.quizTotal ? ` · Quiz ${session.quizScore}/${session.quizTotal}` : ''}
-                      </span>
-                      {session.quiz && (
-                        <button className="quiet-button" type="button" onClick={() => onQuiz(session)}>Review quiz</button>
-                      )}
-                      {session.articleId && (
-                        <button className="quiet-button" type="button" onClick={() => onRerun(session)}>Read again</button>
-                      )}
-                    </div>
-                  </article>
+                    <strong>{record.accuracy === null ? 'n/a' : `${record.accuracy}%`}</strong>
+                    <small>
+                      {record.rounds === 0
+                        ? 'untested'
+                        : `${record.correct}/${record.questions} · ${record.rounds} ${record.rounds === 1 ? 'round' : 'rounds'}${record.cleanSweeps > 0 ? ` · ${record.cleanSweeps} clean` : ''}`}
+                    </small>
+                  </div>
                 );
               })}
+            </div>
+          </section>
+
+          <section className="round-log" aria-labelledby="round-log-title">
+            <h2 id="round-log-title">Round log</h2>
+            <div className="round-list">
+              {ordered.map((round, index) => (
+                <article className={`round-row${round.passed ? '' : ' failed'}`} key={round.id}>
+                  <div className="round-index">{String(ordered.length - index).padStart(2, '0')}</div>
+                  <div className="round-title">
+                    <h3>
+                      {round.sourceUrl ? (
+                        <a href={round.sourceUrl} target="_blank" rel="noreferrer">{round.title}</a>
+                      ) : round.title}
+                    </h3>
+                    <p>{new Date(round.completedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</p>
+                  </div>
+                  <div className="round-speed"><b>{round.committedWpm}</b><small>wpm</small></div>
+                  <div className="round-result">
+                    <span className={round.cleanSweep ? 'clean' : round.passed ? '' : 'miss'}>
+                      {round.correct}/{round.questions}
+                    </span>
+                  </div>
+                  <div className="round-score">{round.score.toLocaleString()}</div>
+                  <div className="round-actions">
+                    {round.quiz && (
+                      <button className="quiet-button" type="button" onClick={() => onReview(round)}>Review</button>
+                    )}
+                  </div>
+                </article>
+              ))}
             </div>
           </section>
         </>
@@ -952,54 +1157,44 @@ function History({
 export default function App() {
   const demo = new URLSearchParams(window.location.search).get('demo') === 'reader';
   const initialRoute = parseHashRoute(window.location.hash);
-  const [view, setView] = useState<View>(demo ? 'reader' : initialRoute.view === 'reader' ? 'loading' : initialRoute.view);
+  const [view, setView] = useState<View>(
+    demo ? 'reader' : initialRoute.view === 'round' ? 'loading' : initialRoute.view === 'score' ? 'round' : initialRoute.view,
+  );
   const [article, setArticle] = useState<ArticleContent | null>(demo ? SAMPLE_ARTICLE : null);
   const [articleId, setArticleId] = useState<string | null>(demo ? 'demo-reader' : null);
-  const [initialWord, setInitialWord] = useState(initialRoute.view === 'reader' ? initialRoute.word : 0);
   const [storedLocally, setStoredLocally] = useState(false);
   const [readerInstance, setReaderInstance] = useState(0);
-  const [sourceType, setSourceType] = useState<SourceType>('sample');
-  const [sessions, setSessions] = useState<CompletedSession[]>(() => loadLocalSessions());
-  const [rerunError, setRerunError] = useState('');
-  const [quizSessionId, setQuizSessionId] = useState<string | null>(initialRoute.view === 'quiz' ? initialRoute.sessionId : null);
+  const [rounds, setRounds] = useState<GameRound[]>(() => loadRounds());
+  const [tierId, setTierId] = useState(() => loadPreferredTier(DEFAULT_TIER_ID));
+  const [activeRoundId, setActiveRoundId] = useState<string | null>(
+    initialRoute.view === 'score' ? initialRoute.roundId : null,
+  );
   const [quizStatus, setQuizStatus] = useState<QuizStatus>('idle');
   const [quizError, setQuizError] = useState('');
-  const [quizAvailability, setQuizAvailability] = useState<boolean | null>(null);
-  const [rouletteError, setRouletteError] = useState('');
+  const [quizAvailable, setQuizAvailable] = useState<boolean | null>(null);
+  const [rollError, setRollError] = useState('');
   const [rollingTitle, setRollingTitle] = useState('');
   const rollInFlight = useRef(false);
   const rollGeneration = useRef(0);
   const rollAbort = useRef<AbortController | null>(null);
+
+  const standing = usePlayerStanding(rounds);
+  const selectedTier = tierById(tierId);
 
   const setRoute = useCallback((hash: string, mode: 'push' | 'replace' = 'push') => {
     const url = `${window.location.pathname}${window.location.search}${hash}`;
     window.history[mode === 'push' ? 'pushState' : 'replaceState'](null, '', url);
   }, []);
 
-  const loadReader = useCallback((
-    nextArticle: ArticleContent,
-    nextArticleId: string,
-    nextSourceType: SourceType,
-    word: number,
-    saved: boolean,
-  ) => {
-    setArticle(nextArticle);
-    setArticleId(nextArticleId);
-    setSourceType(nextSourceType);
-    setInitialWord(word);
-    setStoredLocally(saved);
-    setReaderInstance((value) => value + 1);
-    setRerunError('');
-    setQuizSessionId(null);
-    setQuizStatus('idle');
-    setQuizError('');
-    setView('reader');
+  const selectTier = useCallback((tier: SpeedTier) => {
+    setTierId(tier.id);
+    savePreferredTier(tier.id);
   }, []);
 
   useEffect(() => {
     let current = true;
     void isQuizAvailable().then((available) => {
-      if (current) setQuizAvailability(available);
+      if (current) setQuizAvailable(available);
     });
     return () => { current = false; };
   }, []);
@@ -1010,41 +1205,33 @@ export default function App() {
     const restoreRoute = async () => {
       const currentGeneration = ++generation;
       const route = parseHashRoute(window.location.hash);
-      if (route.view === 'home') {
-        setView('home');
+      if (route.view === 'home' || route.view === 'progress') {
+        setView(route.view);
         setArticle(null);
         setArticleId(null);
-        setQuizSessionId(null);
-        if (window.location.hash) setRoute('', 'replace');
+        setActiveRoundId(null);
+        if (route.view === 'home' && window.location.hash) setRoute('', 'replace');
         return;
       }
-      if (route.view === 'history') {
-        setView('history');
-        setArticle(null);
-        setArticleId(null);
-        setQuizSessionId(null);
-        return;
-      }
-      if (route.view === 'quiz') {
-        const storedSessions = loadLocalSessions();
-        const storedSession = storedSessions.find((session) => session.id === route.sessionId);
-        if (!storedSession?.quiz) {
+      if (route.view === 'score') {
+        const stored = loadRounds();
+        const found = stored.find((round) => round.id === route.roundId);
+        if (!found?.quiz) {
           setRoute('#progress', 'replace');
-          setArticle(null);
-          setArticleId(null);
-          setQuizSessionId(null);
-          setView('history');
+          setView('progress');
           return;
         }
-        setSessions(storedSessions);
+        setRounds(stored);
         setArticle(null);
         setArticleId(null);
-        setQuizSessionId(storedSession.id);
+        setActiveRoundId(found.id);
         setQuizStatus('idle');
         setQuizError('');
-        setView('quiz');
+        setView('round');
         return;
       }
+      // A round in progress cannot be resumed meaningfully once its clock has
+      // run, so a saved article always returns to the bet screen.
       setView('loading');
       const stored = await getStoredArticle(route.articleId);
       if (currentGeneration !== generation) return;
@@ -1055,7 +1242,10 @@ export default function App() {
         setView('home');
         return;
       }
-      loadReader(stored.article, stored.id, stored.sourceType, route.word, true);
+      setArticle(stored.article);
+      setArticleId(stored.id);
+      setStoredLocally(true);
+      setView('bet');
       window.scrollTo({ top: 0, behavior: 'auto' });
     };
     const handleRoute = () => void restoreRoute();
@@ -1067,22 +1257,9 @@ export default function App() {
       window.removeEventListener('popstate', handleRoute);
       window.removeEventListener('hashchange', handleRoute);
     };
-  }, [demo, loadReader, setRoute]);
+  }, [demo, setRoute]);
 
-  const start = async (
-    nextArticle: ArticleContent,
-    nextSourceType: SourceType,
-    stillCurrent?: () => boolean,
-  ) => {
-    setRouletteError('');
-    const stored = await storeArticle(nextArticle, nextSourceType);
-    if (stillCurrent && !stillCurrent()) return;
-    loadReader(nextArticle, stored.id, nextSourceType, 0, stored.saved);
-    setRoute(readerHash(stored.id, 0));
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  };
-
-  const rollWikipedia = async () => {
+  const rollArticle = async () => {
     if (rollInFlight.current) return;
     rollInFlight.current = true;
     const generation = ++rollGeneration.current;
@@ -1093,40 +1270,59 @@ export default function App() {
       timedOut = true;
       controller.abort();
     }, 20_000);
-    setRouletteError('');
+    setRollError('');
     setRollingTitle('');
     setArticle(null);
     setArticleId(null);
-    setQuizSessionId(null);
+    setActiveRoundId(null);
     setView('rolling');
     setRoute('');
     window.scrollTo({ top: 0, behavior: 'auto' });
 
     try {
       const [selectionResult] = await Promise.allSettled([
-        randomWikipediaArticle(fetch, controller.signal),
+        randomWikipediaArticles(undefined, fetch, controller.signal),
         new Promise((resolve) => window.setTimeout(resolve, 1_100)),
       ]);
       if (selectionResult.status === 'rejected') throw selectionResult.reason;
       if (generation !== rollGeneration.current) return;
-      const selection = selectionResult.value;
-      setRollingTitle(selection.title);
-      const extracted = await extractArticle(selection.url, controller.signal);
-      const nextArticle = {
-        ...extracted,
-        title: selection.title,
-        siteName: 'Wikipedia',
-        sourceUrl: selection.url,
-      };
-      if (countWords(nextArticle.paragraphs) < 20) {
-        throw new Error('That article was too short for a useful run. Roll again.');
+
+      // One API call supplies several candidates. Table-heavy articles render
+      // almost no prose once furniture is stripped, so each is prepared in turn
+      // until one is long enough to play. Preparation stays strictly serial.
+      let nextArticle: ArticleContent | null = null;
+      for (const selection of selectionResult.value) {
+        if (generation !== rollGeneration.current) return;
+        setRollingTitle(selection.title);
+        const extracted = await extractArticle(selection.url, controller.signal).catch(() => null);
+        if (!extracted) continue;
+        const paragraphs = roundExcerpt(extracted.paragraphs, MAX_ROUND_WORDS);
+        if (countWords(paragraphs) < MIN_ROUND_WORDS) continue;
+        nextArticle = {
+          ...extracted,
+          paragraphs,
+          title: selection.title,
+          siteName: 'Wikipedia',
+          sourceUrl: selection.url,
+        };
+        break;
+      }
+      if (!nextArticle) {
+        throw new Error('Every article that came up was too thin to play. Roll again.');
       }
       if (generation !== rollGeneration.current) return;
       window.clearTimeout(timeout);
-      await start(nextArticle, 'wikipedia', () => generation === rollGeneration.current);
+      const stored = await storeArticle(nextArticle, 'wikipedia');
+      if (generation !== rollGeneration.current) return;
+      setArticle(nextArticle);
+      setArticleId(stored.id);
+      setStoredLocally(stored.saved);
+      setView('bet');
+      setRoute(roundHash(stored.id));
+      window.scrollTo({ top: 0, behavior: 'auto' });
     } catch (error) {
       if (generation !== rollGeneration.current) return;
-      setRouletteError(timedOut
+      setRollError(timedOut
         ? 'The roll took too long. Check your connection and roll again.'
         : error instanceof Error ? error.message : 'The roll did not land. Try again.');
       setView('home');
@@ -1138,7 +1334,7 @@ export default function App() {
   };
 
   const navigate = (nextView: View) => {
-    if (nextView === 'reader' || nextView === 'loading') return;
+    if (nextView === 'reader' || nextView === 'loading' || nextView === 'bet') return;
     rollAbort.current?.abort();
     rollAbort.current = null;
     rollGeneration.current += 1;
@@ -1147,101 +1343,117 @@ export default function App() {
     setView(nextView);
     setArticle(null);
     setArticleId(null);
-    setRerunError('');
-    setQuizSessionId(null);
+    setActiveRoundId(null);
     setQuizStatus('idle');
     setQuizError('');
-    setRoute(nextView === 'history' ? '#progress' : '');
+    setRoute(nextView === 'progress' ? '#progress' : '');
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
-  const updatePosition = useCallback((word: number) => {
-    if (!articleId || demo) return;
-    setRoute(readerHash(articleId, word), 'replace');
-  }, [articleId, demo, setRoute]);
+  const beginRound = () => {
+    setReaderInstance((value) => value + 1);
+    setView('reader');
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
 
-  const rerun = async (session: CompletedSession) => {
-    if (!session.articleId) return;
-    const stored = await getStoredArticle(session.articleId);
-    if (!stored) {
-      setRerunError('That text has been pruned from local storage. Import or paste it again to reread it.');
+  const persistRound = (round: GameRound) => {
+    saveRound(round);
+    setRounds((current) => [round, ...current.filter((item) => item.id !== round.id)]);
+  };
+
+  const finishRound = async (partial: PendingRound) => {
+    const round: GameRound = {
+      ...partial,
+      correct: 0,
+      questions: 0,
+      score: 0,
+      passed: false,
+      cleanSweep: false,
+      streakBefore: currentStreak(rounds),
+    };
+    persistRound(round);
+    setActiveRoundId(round.id);
+    setRoute(scoreHash(round.id));
+    window.scrollTo({ top: 0, behavior: 'auto' });
+
+    const available = quizAvailable ?? await isQuizAvailable();
+    setQuizAvailable(available);
+    if (!available || !article) {
+      setQuizStatus('error');
+      setQuizError('Recall checks are unavailable right now, so this round cannot be scored.');
+      setView('round');
       return;
     }
-    loadReader(stored.article, stored.id, stored.sourceType, 0, true);
-    setRoute(readerHash(stored.id, 0));
-    window.scrollTo({ top: 0, behavior: 'auto' });
-  };
-
-  const exitReader = () => {
-    navigate('home');
-  };
-
-  const saveSession = (session: CompletedSession) => {
-    saveLocalSession(session);
-    setSessions((current) => [session, ...current.filter((item) => item.id !== session.id)]);
-  };
-
-  const createSessionQuiz = async (session: CompletedSession, source: ArticleContent) => {
-    setQuizSessionId(session.id);
     setQuizStatus('loading');
     setQuizError('');
-    setView('quiz');
-    setRoute(quizHash(session.id));
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    setView('round');
     try {
-      const quiz = await generateQuiz(source);
-      const updated = { ...session, quiz };
-      saveSession(updated);
+      const quiz = await generateQuiz(article);
+      persistRound({ ...round, quiz });
       setQuizStatus('idle');
     } catch (error) {
       setQuizStatus('error');
-      setQuizError(error instanceof Error ? error.message : 'The quiz could not be created right now. Try again.');
+      setQuizError(error instanceof Error ? error.message : 'The recall check could not be created. Try again.');
     }
-  };
-
-  const finish = async (session: CompletedSession) => {
-    saveSession(session);
-    const available = quizAvailability ?? await isQuizAvailable();
-    setQuizAvailability(available);
-    if (!available || !article) {
-      navigate('history');
-      return;
-    }
-    await createSessionQuiz(session, article);
   };
 
   const retryQuiz = async () => {
-    const session = sessions.find((candidate) => candidate.id === quizSessionId);
-    if (!session) {
-      navigate('history');
+    const round = rounds.find((candidate) => candidate.id === activeRoundId);
+    if (!round) {
+      navigate('progress');
       return;
     }
     let source = article;
-    if (!source && session.articleId) source = (await getStoredArticle(session.articleId))?.article ?? null;
+    if (!source && round.articleId) source = (await getStoredArticle(round.articleId))?.article ?? null;
     if (!source) {
       setQuizStatus('error');
-      setQuizError('That reading is no longer stored in this browser, so the quiz cannot be retried.');
+      setQuizError('That article is no longer stored in this browser, so the round cannot be scored.');
       return;
     }
-    await createSessionQuiz(session, source);
+    setQuizStatus('loading');
+    setQuizError('');
+    try {
+      const quiz = await generateQuiz(source);
+      persistRound({ ...round, quiz });
+      setQuizStatus('idle');
+    } catch (error) {
+      setQuizStatus('error');
+      setQuizError(error instanceof Error ? error.message : 'The recall check could not be created. Try again.');
+    }
   };
 
-  const openQuiz = (session: CompletedSession) => {
-    if (!session.quiz) return;
-    setQuizSessionId(session.id);
+  const submitAnswers = (answers: number[]) => {
+    const round = rounds.find((candidate) => candidate.id === activeRoundId);
+    if (!round?.quiz) return;
+    const correct = scoreQuiz(round.quiz, Object.fromEntries(answers.map((answer, index) => [index, answer])));
+    const questions = round.quiz.questions.length;
+    const breakdown = scoreRound({
+      correct,
+      total: questions,
+      wpm: round.committedWpm,
+      streak: round.streakBefore,
+    });
+    persistRound({
+      ...round,
+      quizAnswers: answers,
+      correct,
+      questions,
+      score: breakdown.total,
+      passed: breakdown.passed,
+      cleanSweep: breakdown.cleanSweep,
+    });
+  };
+
+  const reviewRound = (round: GameRound) => {
+    if (!round.quiz) return;
+    setActiveRoundId(round.id);
     setQuizStatus('idle');
     setQuizError('');
     setArticle(null);
     setArticleId(null);
-    setView('quiz');
-    setRoute(quizHash(session.id));
+    setView('round');
+    setRoute(scoreHash(round.id));
     window.scrollTo({ top: 0, behavior: 'auto' });
-  };
-
-  const completeQuiz = (answers: number[], score: number, total: number) => {
-    const session = sessions.find((candidate) => candidate.id === quizSessionId);
-    if (!session) return;
-    saveSession({ ...session, quizAnswers: answers, quizScore: score, quizTotal: total });
   };
 
   if (view === 'reader' && article && articleId) {
@@ -1250,51 +1462,64 @@ export default function App() {
         key={`${articleId}-${readerInstance}`}
         article={article}
         articleId={articleId}
-        sourceType={sourceType}
+        committedWpm={selectedTier.wpm}
         storedLocally={storedLocally}
-        initialWord={initialWord}
-        initiallyRunning={demo}
-        onExit={exitReader}
-        onFinish={finish}
-        onPositionChange={updatePosition}
+        onAbandon={() => navigate('home')}
+        onFinish={finishRound}
       />
     );
   }
 
-  const quizSession = quizSessionId ? sessions.find((session) => session.id === quizSessionId) : undefined;
+  const activeRound = activeRoundId ? rounds.find((round) => round.id === activeRoundId) : undefined;
 
   return (
-    <Shell view={view} onNavigate={navigate}>
-      {view === 'history' ? (
-        <History
-          sessions={sessions}
-          onNewRead={() => navigate('home')}
-          onRoll={() => void rollWikipedia()}
-          onRerun={(session) => void rerun(session)}
-          onQuiz={openQuiz}
-          rerunError={rerunError}
+    <Shell view={view} standing={standing} onNavigate={navigate}>
+      {view === 'progress' ? (
+        <Progress
+          rounds={rounds}
+          standing={standing}
+          onRoll={() => void rollArticle()}
+          onReview={reviewRound}
         />
-      ) : view === 'quiz' && quizSession ? (
-        <Quiz
-          key={quizSession.id}
-          session={quizSession}
-          quiz={quizSession.quiz}
+      ) : view === 'round' && activeRound ? (
+        <RoundView
+          key={activeRound.id}
+          round={activeRound}
+          roundNumber={rounds.length - rounds.findIndex((item) => item.id === activeRound.id)}
+          newBest={activeRound.cleanSweep && activeRound.committedWpm === standing.bestClean
+            && !rounds.some((item) => item.id !== activeRound.id && item.cleanSweep && item.committedWpm >= activeRound.committedWpm)}
+          standing={standing}
           status={quizStatus}
           error={quizError}
           onRetry={() => void retryQuiz()}
-          onProgress={() => navigate('history')}
-          onRollNext={() => void rollWikipedia()}
-          onComplete={completeQuiz}
+          onRollNext={() => void rollArticle()}
+          onProgress={() => navigate('progress')}
+          onSubmit={submitAnswers}
+        />
+      ) : view === 'bet' && article ? (
+        <BetScreen
+          article={article}
+          rounds={rounds}
+          selectedTier={selectedTier}
+          onSelectTier={selectTier}
+          onStart={beginRound}
+          onReroll={() => void rollArticle()}
         />
       ) : view === 'rolling' ? (
         <RollTransition title={rollingTitle} />
       ) : view === 'loading' ? (
         <main className="workspace restore-workspace" aria-live="polite">
           <p className="section-label">Saved locally</p>
-          <h1>Restoring your text…</h1>
+          <h1>Restoring your article…</h1>
         </main>
       ) : (
-        <Intake onStart={start} onRoll={() => void rollWikipedia()} rouletteError={rouletteError} />
+        <Home
+          standing={standing}
+          rounds={rounds}
+          onRoll={() => void rollArticle()}
+          rollError={rollError}
+          quizAvailable={quizAvailable}
+        />
       )}
     </Shell>
   );

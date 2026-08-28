@@ -1,6 +1,6 @@
 ---
-name: speed-read
-description: A playful Wikipedia reading ritual that keeps the page still and the reader in control.
+name: wikispreed
+description: A Wikipedia speed-reading game where the player bets a reading speed and a recall check settles it.
 colors:
   cobalt-signal: "#0B63F6"
   cobalt-deep: "#084BB8"
@@ -68,24 +68,24 @@ components:
     padding: "14px 16px"
 ---
 
-# Design System: speed-read
+# Design System: WikiSpreed
 
 ## Overview
 
-**Creative North Star: "The Roll and the Reading Boundary"**
+**Creative North Star: "The Bet and the Boundary"**
 
-speed-read is a flat humanist instrument with one playful entrance and one exact reading mechanism. A die rolls to choose an English Wikipedia article; once it lands, an opaque curtain crosses the stable text one line at a time. A quiet utility column keeps measurement and reading controls separate from the reading field.
+WikiSpreed is a flat humanist instrument playing a game. A die rolls to choose an English Wikipedia article; the player stakes a reading speed on a ladder of six tiers; then an opaque curtain crosses the stable text one line at a time at exactly that speed, with no way to slow down. A recall check settles the bet and a scoreboard tallies what it paid.
 
-The product should feel curious without becoming noisy, and exact without becoming clinical. Geometry is clean, spacing is generous, and saturated color is reserved for the roll, active boundary, primary action, focus, and live countdown. It rejects casino decoration, literal rulers, paper props, brass hardware, bevels, gamified dashboards, account chrome, and book-themed nostalgia.
+The game feel comes from scale, tabular numerals, a score that counts up, and the tension of a locked clock. It does not come from new colour, confetti, badges, mascots, or casino chrome. The palette is unchanged from the reading instrument it grew out of, because the reading surface still has to be calm enough to read at 750 words per minute.
 
 **Key Characteristics:**
 
 - One flat cover plane and one cobalt reading edge.
-- One authored dice-roll transition that carries the user from choice into focus.
-- Stable, high-legibility text with a 65–72 character measure.
-- A pale utility region that recedes beside the article.
-- Measurement shown with tabular numerals, not decorative charts.
-- Motion only for the dice roll, countdown, and direct state changes.
+- One authored dice-roll transition that carries the player from choice into the wager.
+- A speed ladder that quotes its own odds, its own clock, and the player's own record.
+- Stable, high-legibility text at a measured 65–72 character line.
+- Scores shown as tabular arithmetic the player can check, not as decorative gauges.
+- Motion only for the dice roll, the countdown, the score tally, and direct state changes.
 
 ## Colors
 
@@ -93,123 +93,109 @@ The palette moves from daylight white through cool mineral neutrals to a deep bl
 
 ### Primary
 
-- **Cobalt Signal** (#0B63F6): active boundary, focus, primary action, and the live countdown segment.
-- **Cobalt Deep** (#084BB8): hover and pressed states on cobalt actions.
+- **Cobalt Signal** (#0B63F6): active boundary, focus, primary action, payout multipliers, progress fill, and the live countdown segment.
+- **Cobalt Deep** (#084BB8): hover and pressed states, and earned bonuses in a score tally.
 
 ### Neutral
 
 - **Mineral Curtain** (#2B4055): fully obscures passed text and never carries readable article copy.
 - **Cool Shell** (#EEF3F6): outer application ground and mobile control dock.
-- **Quiet Utility** (#F7F9FA): desktop measurement and reading-control column.
-- **Reading White** (#FFFDFC): article and input surfaces; deliberately cool, not book-paper cream.
+- **Quiet Utility** (#F7F9FA): utility column, standing panels, and scoreboards.
+- **Reading White** (#FFFDFC): article and panel surfaces; deliberately cool, not book-paper cream.
 - **Ink** (#16222D): primary type and icons.
 - **Muted Ink** (#5D6D7C): secondary labels and metadata.
-- **Hairline Rule** (#D8E0E6): structural divisions.
+- **Hairline Rule** (#D8E0E6): structural divisions and empty progress tracks.
+- **Success** (#2E7052) and **Error** (#A83C35): correct and incorrect answers, passed and failed rounds. Both are always paired with words, never used alone.
 
 ### Named Rules
 
-**The Live Edge Rule.** Cobalt marks only what the reader can act on now. It does not decorate inactive surfaces.
+**The Live Edge Rule.** Cobalt marks only what the player can act on now, what they have earned, and how far they have come. It does not decorate inactive surfaces.
 
-**The Roll Rule.** The die is the only playful symbol. It is geometric, cobalt, and purposeful—not a casino motif repeated across the interface.
+**The Roll Rule.** The die is the only playful symbol. It is geometric, cobalt, and purposeful, not a casino motif repeated across the interface.
+
+**The Honest Number Rule.** Every score on screen is arithmetic the player could redo by hand. No number is inflated for effect and no bonus appears that the tally does not explain.
 
 ## Typography
 
-**Display Font:** Atkinson Hyperlegible Next (with Arial fallback)
-**Body Font:** Atkinson Hyperlegible Next (with Arial fallback)
-**Label Font:** Atkinson Hyperlegible Next with tabular numerals
+**Display and Body Font:** Atkinson Hyperlegible Next (with Arial fallback), with tabular numerals for every measurement and score.
 
-**Character:** One purpose-built legibility family keeps the interface contemporary and makes long reading, small labels, and measured numerals feel related. Hierarchy comes from size, weight, and space rather than a display/body costume change.
+**Character:** One purpose-built legibility family keeps long reading, small labels, and large scores related. Hierarchy comes from size, weight, and space rather than a display costume.
 
 ### Hierarchy
 
-- **Display** (650, 2.25rem, 1.08): intake headline and empty-state orientation only.
-- **Title** (650, 1.25rem, 1.2): article title and section headings.
+- **Display** (680, up to 4.25rem, 0.99): the front-door question and screen titles only.
+- **Article Title** (680, 2rem–3.5rem, stepping down as the title lengthens): the bet screen.
+- **Round Score** (520, 2.5rem, tabular): the one number a scoreboard exists to show.
 - **Body** (400, 1.375rem desktop / 1.125rem mobile, 1.62): article content at 65–72 characters per line.
-- **UI Body** (400–600, 0.9375–1rem, 1.4): forms and controls.
-- **Label** (600, 0.8125rem, 0.025em): measurement labels; sentence case except abbreviations.
+- **UI Body** (400–650, 0.9375–1.0625rem, 1.4): controls, ladders, and tables.
+- **Label** (650, 0.8125rem, 0.025em): measurement labels; sentence case except abbreviations.
 
-The complete interface ramp is 0.6875rem (micro), 0.75rem (caption), 0.8125rem (label), 0.875rem (small control), 0.9rem (compact UI), 1rem (UI), 1.0625rem (prominent UI), 1.125rem (mobile reader), 1.25rem (title), 1.5rem (subheading), 2rem (metric), 2.25rem (display), and 1.375rem (desktop reader). These sizes are functional stops rather than a continuously improvised scale.
+**The Unbroken Line Rule.** Reader text sizes change only at structural breakpoints; nothing during a round causes the article to reflow.
 
-**The Unbroken Line Rule.** Reader text sizes change only at structural breakpoints; controls never cause text to reflow during a session.
+**The Real Measure Rule.** The reading column is sized from the measured average character width of the article's own text, not from the `ch` unit, which is the width of a zero and sets roughly ninety-four characters where seventy is intended.
 
 ## Layout
 
-Desktop reading uses a 15rem utility column and a flexible article region. The curtain belongs to the article region, while its boundary and countdown cross the gutter so the active line connects utility and text. The content column is capped at 72ch and centered within the remaining space.
+Desktop reading uses a 240px utility column and a flexible article region, with the reading column capped at the measured 68-character width and centred in the remaining space. The curtain belongs to the article region while its boundary crosses the gutter, so the active line, the countdown, and the utility column read as one interaction.
 
-At 760px and below, the utility column becomes a compact top status row and a fixed bottom control dock. The article keeps horizontal page padding of at least 20px, and all four reading controls remain reachable by thumb without covering the active line. Spacing follows a 4px base with 8, 12, 16, 24, 32, and 48px stops.
+At 760px and below, the utility column becomes a compact top status row and a fixed bottom control dock of three controls. Spacing follows a 4px base with 8, 12, 16, 24, 32, and 48px stops.
 
 ## Elevation & Depth
 
-The system is flat. It uses no resting shadows, translucent glass, blur, texture, or fake material. Depth is conveyed through opaque adjacent color fields, hairline divisions, and the curtain overlapping the article content without changing layout. Curtain movement is immediate so changing the active line neither animates layout nor briefly exposes passed text.
-
-**The Flat Evidence Rule.** A surface may change tone or expose a hairline for state; it does not lift to appear interactive.
-
-## Shapes
-
-Large layout planes are square. Standard controls use 6px corners for comfort and focus visibility; secondary panels may use 12px only when they genuinely group a temporary state. The countdown ring is the only recurring circular form, making its position meaningful. The ready-state Start action is a deliberate one-time circle at a different scale; it disappears when reading begins and is never reused as ordinary button chrome.
+The system is flat. It uses no resting shadows, translucent glass, blur, texture, or fake material. Depth is conveyed through opaque adjacent colour fields, hairline divisions, and the curtain overlapping the article without changing layout.
 
 ## Components
 
-### Buttons
+### Roll Action
 
-- **Shape:** compact rectangle with 6px corners.
-- **Primary:** cobalt with Reading White text; 12px × 18px padding.
-- **Hover / Focus:** deepen to Cobalt Deep; a 2px cobalt focus outline with 2px offset remains visible.
-- **Quiet:** transparent until hover, then Cool Shell; active states use color plus weight, never color alone.
+The front door is one broad cobalt field with a single die and one label. It is the largest interactive element on the page and there is no competing intake.
 
-### Inputs / Fields
+### Speed Ladder
 
-- **Style:** Reading White field, 1px Hairline Rule, 6px corners, 14px × 16px padding.
-- **Focus:** Ink border plus a 2px Cobalt Signal outline.
-- **Error / Disabled:** error copy explains recovery; disabled state retains legible text and reduces contrast only on nonessential decoration.
-
-### Navigation
-
-The wordmark and local-storage note sit at opposite ends of the utility region. Reading-session navigation is separate from site navigation. On mobile, progress stays in the top app bar and never enters the bottom reading controls.
+Six named tiers from Cruise (200 wpm) to Reckless (750 wpm), one row each, selectable by click or by number key. Every row carries its payout multiplier, the estimated clock for this article, and the player's own accuracy at that tier, marked in error red once it falls below half. The selected row takes a cobalt left edge and a tinted ground. The ladder header quotes what a clean sweep at the selected tier pays, so the wager is a number before it is a feeling.
 
 ### Reading Curtain
 
-The reading window sits between two opaque Mineral Curtain planes. The upper plane ends immediately above the active line; the lower plane begins immediately below the third readable line. The active line and two following lines are the only visible text, allowing a small deliberate skip without exposing the article. Moving either plane changes only its measured cover and never changes article geometry. Passed and farther-ahead text must be fully unreadable. The viewport stays fixed while the line remains in its safe band; threshold crossings use an immediate page adjustment, with mobile paging by one usable screen only after the curtain reaches the dock.
+Unchanged from the reading instrument. The window sits between two opaque Mineral Curtain planes; the active line and two look-ahead lines are the only visible text, with look-ahead lines set in a lighter ink so the eye anchors on the active line. Passed and farther-ahead text must be fully unreadable.
 
 ### Countdown Marker
 
-Two SVG circles share one center: a quiet limit track and a cobalt meter whose dash offset reflects remaining line time. It sits in the gutter left of the active line. The marker restarts when pace or active line changes; completing it advances only the reading boundary to the next stable line.
+Two SVG circles share one centre: a quiet limit track and a cobalt meter whose dash offset reflects remaining line time. Under reduced motion the sweep becomes stepped rather than disappearing, because the boundary still advances and the player still needs the warning.
 
-### Start State
+### Committed Speed Panel
 
-Prepared, restored, and rerun texts begin behind a full Mineral Curtain gate. The article title is centered above a large circular cobalt Start action, with pace and line count as quiet context. The underlying article remains mounted and measured but is neither readable nor interactive. Starting removes the gate in one direct state change, focuses the active line, and reveals exactly the three-line reading window without changing document geometry.
+The reader's utility column states the locked speed, its tier, its multiplier, a progress track, and the time remaining. It offers no pace control, because there is none.
 
-When pasted prose has no reliable heading, GPT-5.6 Luna may supply the gate title. Existing Wikipedia and extracted page titles remain authoritative; title failure silently falls back to “Pasted text” so the core reader never depends on AI.
+### Scoreboard
 
-### Wikipedia Roll
+A flat panel with a cobalt top edge, or an error top edge on a failed round. It lists the round's arithmetic as a definition list — base pay, clean-sweep bonus, streak bonus — and closes with the round score, which counts up on reveal and appears immediately under reduced motion. A failed round explains in words why it failed.
 
-The primary intake action is a broad cobalt field with a single die. Activating it leads to a full-workspace transition: the die tumbles while the MediaWiki selection is in flight, then the chosen title appears while useful text is extracted. Reduced-motion users see the die change face without spatial tumbling. The transition never launches more than one roll request at a time.
+### Rank Bar
 
-### Recall Check and Score
+Rank name, lifetime points, a cobalt progress track, and the points remaining to the next rank. It appears in the utility column, on the front door for a returning player, and beneath a finished round, so progress is visible at the moment it changes.
 
-The post-reading quiz is a flat continuation of the instrument, not a gamified results screen. Four numbered fieldsets form one uninterrupted column with hairline divisions. Choices use native radio controls; after submission, a narrow success or error rule and explicit text identify the correct and selected answers. The result is one tabular measurement beside the heading, paired with a clear next-roll action. Loading uses the same quiet line pulse as extraction, and failure always confirms that the completed read was saved.
+### Comprehension Curve
 
-### Stats and Article Log
-
-Accuracy-by-speed uses horizontal table rows rather than decorative charts: each measured-speed band shows percent correct, correct/total questions, and number of quizzes. The article log is chronological and links Wikipedia titles back to their source. Missing quiz scores remain visibly unscored rather than being treated as zero.
+One row per speed tier with accuracy, sample size, and clean-sweep count. Untested tiers use a dashed track rather than an empty solid one, because a solid empty bar reads as zero rather than as no data. The highest reliably held tier is labelled.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** make the current line, curtain edge, and countdown read as one interaction.
-- **Do** keep exactly the current line and two lines of look-ahead readable after Start.
+- **Do** make the speed feel like a stake before the round and a constraint during it.
+- **Do** show the player's own record at a tier at the moment they are choosing it.
+- **Do** keep exactly the current line and two lines of look-ahead readable.
 - **Do** keep article text between 65 and 72 characters per line on desktop.
-- **Do** preserve keyboard, touch, focus, and reduced-motion behavior as first-class states.
-- **Do** keep measurement secondary to reading.
-- **Do** make quiz correctness understandable without relying on color, and keep explanations grounded and concise.
-- **Do** make the roll feel like one small moment of anticipation and make another roll easy after scoring.
+- **Do** show every bonus as arithmetic the player can check.
+- **Do** preserve keyboard, touch, focus, and reduced-motion behaviour as first-class states.
+- **Do** make correctness and pass or fail readable without colour.
 
 ### Don't:
 
-- **Don't** continuously auto-scroll, reflow, or move article geometry; viewport paging is reserved for boundary threshold crossings.
-- **Don't** expose article text before Start or allow hidden future lines to remain clickable.
-- **Don't** let covered text remain readable through opacity, blur, or texture.
-- **Don't** use literal instrument hardware, paper nostalgia, pills, gradients, glass, or decorative dashboards.
-- **Don't** use cobalt on inactive decoration.
-- **Don't** turn the roll into casino chrome or add streaks, confetti, badges, or normative comprehension labels to quiz results.
+- **Don't** offer any way to change speed once a round has started.
+- **Don't** continuously auto-scroll, reflow, or move article geometry.
+- **Don't** expose article text before the round or let hidden lines stay clickable.
+- **Don't** celebrate with confetti, badges, mascots, sound, or exclamation marks.
+- **Don't** compare the player to anyone else, or imply a normative reading speed.
+- **Don't** let a failed round read as a punishment beyond the streak it costs.
+- **Don't** use cobalt on inactive decoration, or invent a colour outside the palette to signal excitement.

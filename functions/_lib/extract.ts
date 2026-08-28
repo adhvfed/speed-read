@@ -1,9 +1,10 @@
 import { Readability } from '@mozilla/readability';
 import { parseHTML } from 'linkedom';
 import type { ArticleContent } from '../../src/types';
-import { usefulParagraphs } from '../../src/lib/text';
+import { cleanTitle, usefulParagraphs } from '../../src/lib/text';
 
 const MAX_HTML_BYTES = 2_000_000;
+const ARTICLE_FETCH_CLIENT = 'speed-read/0.2 (https://github.com/adhvfed/speed-read)';
 const MAX_REDIRECTS = 3;
 const REMOVE_SELECTORS = [
   'script', 'style', 'noscript', 'template', 'svg', 'canvas', 'iframe',
@@ -11,6 +12,17 @@ const REMOVE_SELECTORS = [
   '[role="complementary"]', '[aria-hidden="true"]',
   '.advertisement', '.ad', '.ads', '.cookie', '.newsletter', '.comments',
   '.related', '.recommended', '.social', '.share', '.promo',
+  // Structures that carry facts but never continuous prose. A speed reader
+  // advances one line at a time, so a table cell or a caption becomes a
+  // one-word line with its own countdown rather than something to read.
+  'table', 'figure', 'figcaption', 'aside', '[role="note"]', '.noprint',
+  // English Wikipedia furniture, removed before Readability because
+  // Readability strips the class names these rules depend on.
+  '.reference', '.reflist', '.references', '.mw-references-wrap', '.mw-editsection',
+  '.navbox', '.infobox', '.sidebar', '.metadata', '.hatnote', '.shortdescription',
+  '.siteSub', '.mw-jump-link', '.toc', '#toc', '.thumb', '.thumbcaption', '.gallery',
+  '.portal', '.sistersitebox', '.side-box', '.ambox', '.catlinks', '.printfooter',
+  '.mw-file-description', '.mw-empty-elt', '.IPA', '.mw-authority-control',
 ];
 
 function isBlockedIpv4(parts: number[]): boolean {
@@ -113,7 +125,11 @@ export async function fetchPublicHtml(value: string, fetcher: typeof fetch = fet
       redirect: 'manual',
       headers: {
         accept: 'text/html, text/plain;q=0.9',
-        'user-agent': 'speed-read/0.1 (article text extractor)',
+        'accept-encoding': 'gzip',
+        // Wikimedia's User-Agent policy requires a means of contact, and every
+        // Wikipedia roll makes one of these fetches. Keep it identical to the
+        // identifier the Action API client sends.
+        'user-agent': ARTICLE_FETCH_CLIENT,
       },
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
@@ -133,12 +149,27 @@ export async function fetchPublicHtml(value: string, fetcher: typeof fetch = fet
 }
 
 interface QueryRoot {
-  querySelectorAll(selectors: string): ArrayLike<{ textContent: string | null }>;
+  querySelectorAll(selectors: string): ArrayLike<{ tagName?: string; textContent: string | null }>;
+}
+
+/**
+ * List items are the main way reference lists, navigation boxes, and link
+ * collections survive into an otherwise clean article, so a list item has to
+ * look like a written sentence before it is treated as reading material.
+ */
+function listItemReadsAsProse(text: string): boolean {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return words.length >= 8 && /[.!?]["')\]]?$/.test(text.trim());
 }
 
 function collectParagraphs(root: QueryRoot): string[] {
   const selectors = 'p, h2, h3, blockquote, li';
-  return Array.from(root.querySelectorAll(selectors), (element) => element.textContent ?? '');
+  return Array.from(root.querySelectorAll(selectors), (element) => {
+    const text = element.textContent ?? '';
+    const tag = (element.tagName ?? '').toLowerCase();
+    if (tag === 'li' && !listItemReadsAsProse(text)) return '';
+    return text;
+  });
 }
 
 export function extractUsefulArticle(html: string, url: string): ArticleContent {
@@ -179,10 +210,12 @@ export function extractUsefulArticle(html: string, url: string): ArticleContent 
   const paragraphs = usefulParagraphs(rawParagraphs);
   if (paragraphs.join(' ').length < 120) throw new Error('The page did not contain enough useful reading text.');
 
+  const siteName = result?.siteName?.trim() || fallbackSite;
+
   return {
-    title: result?.title?.trim() || fallbackTitle,
+    title: cleanTitle(result?.title?.trim() || fallbackTitle, siteName),
     byline: result?.byline?.trim() || null,
-    siteName: result?.siteName?.trim() || fallbackSite,
+    siteName,
     sourceUrl: url,
     paragraphs,
   };
