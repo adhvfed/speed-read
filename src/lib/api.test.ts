@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { randomWikipediaArticle } from './api';
+import { generateTitle, randomWikipediaArticle } from './api';
 
 describe('Wikipedia roulette API', () => {
   it('requests one useful English article with an identifiable client header', async () => {
@@ -34,5 +34,22 @@ describe('Wikipedia roulette API', () => {
       headers: { 'content-type': 'application/json', 'retry-after': '7' },
     }));
     await expect(randomWikipediaArticle(request as typeof fetch)).rejects.toThrow('Wait 7 seconds, then roll again.');
+  });
+
+  it('requests a bounded generated title with an anonymous browser identifier', async () => {
+    const request = vi.fn(async (_input: RequestInfo | URL, options?: RequestInit) => {
+      const body = JSON.parse(String(options?.body)) as { text: string };
+      expect(body.text.length).toBeLessThanOrEqual(6_000);
+      expect(new Headers(options?.headers).get('x-speed-read-client')).toMatch(/^[a-z0-9-]{16,100}$/i);
+      return new Response(JSON.stringify({ title: 'A Useful Generated Title' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    vi.stubGlobal('fetch', request);
+
+    await expect(generateTitle(['word '.repeat(1_500)])).resolves.toBe('A Useful Generated Title');
+    expect(request).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
   });
 });

@@ -2,7 +2,7 @@ import type { ArticleContent } from '../types';
 import type { ReadingQuiz } from '../types';
 import { buildQuizExcerpt, isReadingQuiz } from './quiz';
 
-const QUIZ_CLIENT_KEY = 'speed-read:quiz-client:v1';
+const AI_CLIENT_KEY = 'speed-read:ai-client:v1';
 export const WIKIPEDIA_RANDOM_API = 'https://en.wikipedia.org/w/api.php';
 const WIKIPEDIA_CLIENT = 'speed-read/0.2 (https://github.com/adhvfed/speed-read)';
 
@@ -12,12 +12,12 @@ export interface WikipediaSelection {
   url: string;
 }
 
-function quizClientId(): string {
+function aiClientId(): string {
   try {
-    const stored = localStorage.getItem(QUIZ_CLIENT_KEY);
+    const stored = localStorage.getItem(AI_CLIENT_KEY);
     if (stored) return stored;
     const created = globalThis.crypto?.randomUUID?.() ?? `browser-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    localStorage.setItem(QUIZ_CLIENT_KEY, created);
+    localStorage.setItem(AI_CLIENT_KEY, created);
     return created;
   } catch {
     return globalThis.crypto?.randomUUID?.() ?? `browser-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -109,7 +109,7 @@ export async function generateQuiz(article: ArticleContent): Promise<ReadingQuiz
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-speed-read-client': quizClientId(),
+        'x-speed-read-client': aiClientId(),
       },
       body: JSON.stringify({
         title: article.title.slice(0, 300),
@@ -119,4 +119,22 @@ export async function generateQuiz(article: ArticleContent): Promise<ReadingQuiz
   );
   if (!isReadingQuiz(quiz)) throw new Error('The quiz response was incomplete. Try again.');
   return quiz;
+}
+
+export async function generateTitle(paragraphs: string[]): Promise<string> {
+  const text = paragraphs.join('\n\n').slice(0, 6_000).trim();
+  const result = await json<{ title?: unknown }>(
+    await fetch('/api/title', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-speed-read-client': aiClientId(),
+      },
+      body: JSON.stringify({ text }),
+    }),
+  );
+  if (typeof result.title !== 'string') throw new Error('The generated title was incomplete.');
+  const title = result.title.replace(/\s+/g, ' ').trim();
+  if (title.length < 3 || title.length > 100) throw new Error('The generated title was invalid.');
+  return title;
 }

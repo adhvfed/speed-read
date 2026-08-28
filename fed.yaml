@@ -9,7 +9,7 @@ parameters:
     type: secret
     source: manual
     optional: true
-    description: "Development-only OpenAI API key for post-reading quizzes"
+    description: "Development-only OpenAI API key for generated titles and post-reading quizzes"
 
 services:
   limiter:
@@ -20,7 +20,7 @@ services:
     healthcheck:
       http_get: "http://127.0.0.1:{{LIMITER_PORT}}/health"
       timeout: 30s
-    startup_message: "quiz limiter: http://127.0.0.1:{{LIMITER_PORT}}"
+    startup_message: "AI limiter: http://127.0.0.1:{{LIMITER_PORT}}"
   web:
     process: node scripts/start-pages-dev.mjs
     install: npm install

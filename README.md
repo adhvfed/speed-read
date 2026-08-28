@@ -7,15 +7,15 @@ A Wikipedia roulette for speed-reading practice. Roll a random English Wikipedia
 - The primary action uses the MediaWiki Action API to choose one random, non-redirect article from English Wikipedia's main namespace, then prepares only its useful reading text.
 - A short dice-roll transition runs while the article is chosen. Duplicate requests are blocked, and reduced-motion preferences are respected.
 - Left and right arrows decrease or increase the target pace.
-- A prepared or restored text waits for the reader to press Start.
+- A prepared or restored text stays fully covered behind its title and one large Start action.
 - The countdown advances to the next line automatically at the selected pace.
 - Up and down arrows move the active reading line manually and restart its countdown.
-- Clicking any line makes it active.
-- An opaque curtain hides text above the active line.
-- Clicking any line or changing pace restarts the countdown for that line.
+- The active line and two following lines form the only readable window. Clicking either look-ahead line makes it active; everything above and farther ahead remains behind opaque covers.
+- Clicking a visible line or changing pace restarts the countdown for that line.
 - Desktop paging happens only when the active line leaves its safe viewport band. Mobile remains touch-scrollable and jumps one usable page, without animation, only when the curtain reaches the screen edge.
 - On mobile, the same four actions are available in a fixed thumb-control dock.
 - When quiz generation is configured, finishing a read creates a four-question recall check with GPT-5.6 Luna. Quiz results are saved with the local session and can be reviewed after refresh.
+- When pasted prose has no useful heading, Luna supplies a short title for the Start gate. Existing page titles are kept, and a failed or unavailable title request never blocks the read.
 - A scored quiz leads directly to the next roll. The local stats view groups quiz accuracy by measured 100-wpm speed bands and keeps a chronological, source-linked article log.
 
 Wikipedia selection follows [MediaWiki API etiquette](https://www.mediawiki.org/wiki/API:Etiquette): each user action makes one serial GET request, includes an `Api-User-Agent` that identifies this repository, supplies `maxlag`, and presents load/rate-limit failures as a recoverable roll state. The app does not bulk-download, prefetch, or retry pages in parallel.
@@ -24,9 +24,9 @@ Prepared article bodies are stored only in this browser with IndexedDB. The loca
 
 Completed-session summaries and the preferred pace remain small `localStorage` records. The URL hash identifies the saved article and semantic word position, so refreshing restores the same place and waits for Start. A missing or pruned hash falls back to New read. There are no accounts, analytics, server database, or cross-device sync. Clearing site data removes the local library and history.
 
-The deployed site includes stateless Cloudflare Pages Functions. `/api/extract` downloads a public HTML page, removes navigation and other non-reading material, and returns useful plain text. `/api/quiz` is available only when an `OPENAI_API_KEY` secret exists; otherwise the client does not show a quiz. The quiz function sends a bounded excerpt to the OpenAI Responses API only after the read is complete, requests `gpt-5.6-luna` with `store: false`, and retains no article or quiz data on the server.
+The deployed site includes stateless Cloudflare Pages Functions. `/api/extract` downloads a public HTML page, removes navigation and other non-reading material, and returns useful plain text. `/api/title` optionally names untitled pasted prose, while `/api/quiz` is available only when an `OPENAI_API_KEY` secret exists; otherwise the client does not show a quiz. Both AI functions request `gpt-5.6-luna` with `store: false` and retain no article, title, or quiz data on the server.
 
-The public quiz boundary calls a private, service-bound Worker with two native Cloudflare limits: four requests per browser per minute and twenty per network per minute. The limiter has no public route and never receives the OpenAI key or article text. If that binding is absent or unhealthy, quiz generation fails closed. The Pages Function also requires a same-origin browser request, caps source and output size, supplies no model tools, treats source content as untrusted data, constrains output with a strict JSON schema, and validates the returned structure again on the server. The browser/network identity sent to OpenAI as a safety identifier is hashed first.
+The public AI boundaries share a private, service-bound Worker with two native Cloudflare limits: four requests per browser per minute and twenty per network per minute. The limiter has no public route and never receives the OpenAI key or article text. If that binding is absent or unhealthy, generation fails closed. Each Pages Function also requires a same-origin browser request, caps source and output size, supplies no model tools, treats source content as untrusted data, constrains output with a strict JSON schema, and validates the returned structure again on the server. The browser/network identity sent to OpenAI as a safety identifier is hashed first.
 
 ## Local development
 
@@ -36,12 +36,12 @@ Requires Node.js 22 or newer and [Service Federation](https://www.service-federa
 fed start
 ```
 
-`fed start` installs dependencies, builds the site, and starts the complete local Pages runtime plus its private rate-limit Worker as separate processes. Only the Pages process receives the linked development API key. It is declared as an optional manual secret and the committed Cloud binding uses `secret_cache: memory`, so the quiz simply stays unavailable when no key exists and fetched values are not cached on disk.
+`fed start` installs dependencies, builds the site, and starts the complete local Pages runtime plus its private rate-limit Worker as separate processes. Only the Pages process receives the linked development API key. It is declared as an optional manual secret and the committed Cloud binding uses `secret_cache: memory`, so AI features simply stay unavailable when no key exists and fetched values are not cached on disk.
 
 Run a real, structure-only quiz smoke test through the running service:
 
 ```sh
-fed test:quiz
+fed run test:quiz
 ```
 
 Run the test and production-build checks:

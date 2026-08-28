@@ -14,7 +14,7 @@ import {
 } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { getStoredArticle, storeArticle } from './lib/articleStore';
-import { extractArticle, generateQuiz, isQuizAvailable, randomWikipediaArticle } from './lib/api';
+import { extractArticle, generateQuiz, generateTitle, isQuizAvailable, randomWikipediaArticle } from './lib/api';
 import { scoreQuiz } from './lib/quiz';
 import { parseHashRoute, quizHash, readerHash } from './lib/routes';
 import { inferReadingSource } from './lib/source';
@@ -181,13 +181,17 @@ function Intake({
     }
 
     if (inferred.kind === 'text') {
-      const article = pastedTextToArticle(inferred.text);
+      let article = pastedTextToArticle(inferred.text);
       if (countWords(article.paragraphs) < 20) {
         setError('Add a little more text—about one short paragraph is enough to begin.');
         return;
       }
       setLoading(true);
       try {
+        if (article.title === 'Pasted text') {
+          const generatedTitle = await generateTitle(article.paragraphs).catch(() => null);
+          if (generatedTitle) article = { ...article, title: generatedTitle };
+        }
         await onStart(article, 'text');
       } finally {
         setLoading(false);
@@ -389,14 +393,16 @@ function Reader({
   const [startedAt, setStartedAt] = useState<Date | null>(() => initiallyRunning ? new Date() : null);
   const [running, setRunning] = useState(initiallyRunning);
   const [curtainHeight, setCurtainHeight] = useState(0);
+  const [futureCurtainTop, setFutureCurtainTop] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [documentPaused, setDocumentPaused] = useState(() => document.hidden);
   const activeElement = useRef<HTMLButtonElement>(null);
+  const visibleEndElement = useRef<HTMLButtonElement>(null);
   const readerStage = useRef<HTMLDivElement>(null);
-  const desktopStartButton = useRef<HTMLButtonElement>(null);
-  const mobileStartButton = useRef<HTMLButtonElement>(null);
+  const startButton = useRef<HTMLButtonElement>(null);
   const finished = useRef(false);
   const activeIndex = findActiveLine(lines, activeWord);
+  const visibleEndIndex = Math.min(activeIndex + 2, Math.max(0, lines.length - 1));
   const activeLine = lines[activeIndex];
   const previousActiveIndex = useRef<number | null>(null);
   const pausedAt = useRef<number | null>(null);
@@ -413,21 +419,21 @@ function Reader({
   useEffect(() => {
     if (initiallyRunning) return;
     const frame = requestAnimationFrame(() => {
-      const target = window.matchMedia('(max-width: 760px)').matches
-        ? mobileStartButton.current
-        : desktopStartButton.current;
-      target?.focus({ preventScroll: true });
+      startButton.current?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
   }, [initiallyRunning]);
 
   useLayoutEffect(() => {
     let frame = 0;
-    if (activeElement.current && readerStage.current) {
+    if (activeElement.current && visibleEndElement.current && readerStage.current) {
       const readingLineHadFocus = document.activeElement?.classList.contains('reading-line');
       const activeTop = activeElement.current.getBoundingClientRect().top;
-      const stageTop = readerStage.current.getBoundingClientRect().top;
+      const visibleEndBottom = visibleEndElement.current.getBoundingClientRect().bottom;
+      const stageBounds = readerStage.current.getBoundingClientRect();
+      const stageTop = stageBounds.top;
       setCurtainHeight(Math.max(0, activeTop - stageTop));
+      setFutureCurtainTop(Math.max(0, visibleEndBottom - stageTop));
       if (readingLineHadFocus && document.activeElement !== activeElement.current) {
         activeElement.current.focus({ preventScroll: true });
       }
@@ -443,7 +449,7 @@ function Reader({
         const mobile = window.matchMedia('(max-width: 760px)').matches;
         const topInset = mobile ? 56 : 24;
         const mobileDock = mobile
-          ? document.querySelector<HTMLElement>('.mobile-reader-controls, .mobile-reader-start')
+          ? document.querySelector<HTMLElement>('.mobile-reader-controls')
           : null;
         const bottomInset = mobile ? Math.ceil(mobileDock?.getBoundingClientRect().height ?? 76) : 72;
         let delta = readingScrollDelta({
@@ -462,7 +468,7 @@ function Reader({
       });
     }
     return () => cancelAnimationFrame(frame);
-  }, [activeIndex, lines]);
+  }, [activeIndex, lines, visibleEndIndex]);
 
   useEffect(() => {
     if (activeLine) onPositionChange(activeLine.startWord);
@@ -496,6 +502,7 @@ function Reader({
     setStartedAt(now);
     setRunning(true);
     setTimerRevision((value) => value + 1);
+    requestAnimationFrame(() => activeElement.current?.focus({ preventScroll: true }));
   }, [activeLine, activeWord, wpm]);
 
   const finish = useCallback(() => {
@@ -557,15 +564,16 @@ function Reader({
       event.preventDefault();
       if (event.key === 'ArrowLeft') adjustPace(-WPM_STEP);
       if (event.key === 'ArrowRight') adjustPace(WPM_STEP);
-      if (event.key === 'ArrowUp') moveLine(-1);
+      if (event.key === 'ArrowUp' && running) moveLine(-1);
       if (event.key === 'ArrowDown') {
-        if (activeIndex === lines.length - 1 && running) finish();
+        if (!running) return;
+        if (activeIndex === lines.length - 1) finish();
         else moveLine(1);
       }
     };
     window.addEventListener('keydown', handleKeys);
     return () => window.removeEventListener('keydown', handleKeys);
-  }, [activeIndex, adjustPace, finish, lines.length, moveLine]);
+  }, [activeIndex, adjustPace, finish, lines.length, moveLine, running]);
 
   const atEnd = activeIndex === lines.length - 1;
   const nextLabel = atEnd ? (running ? 'Finish read' : 'Last line') : 'Next line';
@@ -602,14 +610,11 @@ function Reader({
           {!running ? 'Ready · timer begins when you start' : paceDelta === 0 ? 'Starting pace' : `${paceDelta > 0 ? '+' : ''}${paceDelta} wpm from start`}
           {running && passedWords - startWord > 8 && actualSeconds >= 15 && actualWpm > 0 ? <span> · {actualWpm} actual</span> : null}
         </p>
-        {!running && (
-          <button ref={desktopStartButton} className="primary-button reader-start-button" type="button" onClick={begin}>Start reading</button>
-        )}
         <div className="desktop-reader-controls">
           <ReaderControl label="Slower" keyLabel="←" direction="left" onClick={() => adjustPace(-WPM_STEP)} disabled={wpm === MIN_WPM} />
           <ReaderControl label="Faster" keyLabel="→" direction="right" onClick={() => adjustPace(WPM_STEP)} disabled={wpm === MAX_WPM} />
-          <ReaderControl label="Previous line" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0} />
-          <ReaderControl label={nextLabel} keyLabel="↓" direction="down" onClick={nextAction} disabled={atEnd && !running} />
+          <ReaderControl label="Previous line" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={!running || activeIndex === 0} />
+          <ReaderControl label={nextLabel} keyLabel="↓" direction="down" onClick={nextAction} disabled={!running} />
         </div>
         <div className="reader-utility-footer">
           <button className="quiet-button" type="button" onClick={onExit}>Leave reading</button>
@@ -627,17 +632,23 @@ function Reader({
           <div className="reading-curtain" style={{ height: curtainHeight }} aria-hidden="true">
             <span>read</span>
           </div>
+          <div className="reading-future-curtain" style={{ top: futureCurtainTop }} aria-hidden="true" />
           <div className="reader-copy" ref={copyRef}>
             {lines.map((line, index) => {
               const active = index === activeIndex;
+              const visible = running && index >= activeIndex && index <= visibleEndIndex;
               return (
                 <button
                   key={line.id}
-                  ref={active ? activeElement : undefined}
+                  ref={(element) => {
+                    if (active) activeElement.current = element;
+                    if (index === visibleEndIndex) visibleEndElement.current = element;
+                  }}
                   type="button"
-                  className={`reading-line${active ? ' active' : ''}${line.paragraphStart ? ' paragraph-start' : ''}`}
+                  className={`reading-line${active ? ' active' : ''}${visible ? ' window-visible' : ''}${line.paragraphStart ? ' paragraph-start' : ''}`}
                   onClick={() => selectLine(line.startWord)}
-                  tabIndex={active ? 0 : -1}
+                  tabIndex={active && visible ? 0 : -1}
+                  aria-hidden={!visible}
                   aria-current={active ? 'true' : undefined}
                   aria-label={`${active ? 'Current line: ' : 'Move to line: '}${line.text}`}
                 >
@@ -656,15 +667,22 @@ function Reader({
               )}
             </div>
           </div>
+          {!running && (
+            <section className="reader-start-gate" aria-labelledby="reader-start-title">
+              <div>
+                <p>Ready to read</p>
+                <h2 id="reader-start-title">{article.title}</h2>
+                <button ref={startButton} className="reader-start-orb" type="button" onClick={begin} aria-label="Start reading">
+                  Start
+                </button>
+                <span>{wpm} wpm · {lines.length} lines</span>
+              </div>
+            </section>
+          )}
         </div>
       </main>
 
-      {!running ? (
-        <div className="mobile-reader-start">
-          <span>Line {activeIndex + 1} · {wpm} wpm</span>
-          <button ref={mobileStartButton} className="primary-button" type="button" onClick={begin}>Start reading</button>
-        </div>
-      ) : (
+      {running && (
         <div className="mobile-reader-controls" aria-label="Reading controls">
           <ReaderControl className="pace-control" label="Slower" keyLabel="" direction="left" onClick={() => adjustPace(-WPM_STEP)} disabled={wpm === MIN_WPM} />
           <ReaderControl className="pace-control" label="Faster" keyLabel="" direction="right" onClick={() => adjustPace(WPM_STEP)} disabled={wpm === MAX_WPM} />

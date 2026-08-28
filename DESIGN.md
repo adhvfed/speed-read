@@ -146,7 +146,7 @@ The system is flat. It uses no resting shadows, translucent glass, blur, texture
 
 ## Shapes
 
-Large layout planes are square. Standard controls use 6px corners for comfort and focus visibility; secondary panels may use 12px only when they genuinely group a temporary state. The countdown ring is the only recurring circular form, making its position meaningful.
+Large layout planes are square. Standard controls use 6px corners for comfort and focus visibility; secondary panels may use 12px only when they genuinely group a temporary state. The countdown ring is the only recurring circular form, making its position meaningful. The ready-state Start action is a deliberate one-time circle at a different scale; it disappears when reading begins and is never reused as ordinary button chrome.
 
 ## Components
 
@@ -169,7 +169,7 @@ The wordmark and local-storage note sit at opposite ends of the utility region. 
 
 ### Reading Curtain
 
-The curtain is an opaque Mineral Curtain plane whose lower edge aligns immediately above the active line. Moving it changes only its height and never changes article geometry. Passed text must be fully unreadable. The viewport stays fixed while the line remains in its safe band; threshold crossings use an immediate page adjustment, with mobile paging by one usable screen only after the curtain reaches the dock.
+The reading window sits between two opaque Mineral Curtain planes. The upper plane ends immediately above the active line; the lower plane begins immediately below the third readable line. The active line and two following lines are the only visible text, allowing a small deliberate skip without exposing the article. Moving either plane changes only its measured cover and never changes article geometry. Passed and farther-ahead text must be fully unreadable. The viewport stays fixed while the line remains in its safe band; threshold crossings use an immediate page adjustment, with mobile paging by one usable screen only after the curtain reaches the dock.
 
 ### Countdown Marker
 
@@ -177,7 +177,9 @@ Two SVG circles share one center: a quiet limit track and a cobalt meter whose d
 
 ### Start State
 
-Prepared, restored, and rerun texts begin stopped. The full meter, active line, pace, and explicit Start action are visible before timing begins. This state uses the same reading composition rather than introducing an overlay.
+Prepared, restored, and rerun texts begin behind a full Mineral Curtain gate. The article title is centered above a large circular cobalt Start action, with pace and line count as quiet context. The underlying article remains mounted and measured but is neither readable nor interactive. Starting removes the gate in one direct state change, focuses the active line, and reveals exactly the three-line reading window without changing document geometry.
+
+When pasted prose has no reliable heading, GPT-5.6 Luna may supply the gate title. Existing Wikipedia and extracted page titles remain authoritative; title failure silently falls back to “Pasted text” so the core reader never depends on AI.
 
 ### Wikipedia Roll
 
@@ -196,6 +198,7 @@ Accuracy-by-speed uses horizontal table rows rather than decorative charts: each
 ### Do:
 
 - **Do** make the current line, curtain edge, and countdown read as one interaction.
+- **Do** keep exactly the current line and two lines of look-ahead readable after Start.
 - **Do** keep article text between 65 and 72 characters per line on desktop.
 - **Do** preserve keyboard, touch, focus, and reduced-motion behavior as first-class states.
 - **Do** keep measurement secondary to reading.
@@ -205,6 +208,7 @@ Accuracy-by-speed uses horizontal table rows rather than decorative charts: each
 ### Don't:
 
 - **Don't** continuously auto-scroll, reflow, or move article geometry; viewport paging is reserved for boundary threshold crossings.
+- **Don't** expose article text before Start or allow hidden future lines to remain clickable.
 - **Don't** let covered text remain readable through opacity, blur, or texture.
 - **Don't** use literal instrument hardware, paper nostalgia, pills, gradients, glass, or decorative dashboards.
 - **Don't** use cobalt on inactive decoration.

@@ -720,11 +720,6 @@ kbd {
   font-size: 0.75rem;
 }
 
-.reader-start-button {
-  width: 100%;
-  margin-bottom: 18px;
-}
-
 .desktop-reader-controls {
   display: grid;
   border-bottom: 1px solid var(--rule);
@@ -801,8 +796,7 @@ kbd {
 }
 
 .mobile-reader-status,
-.mobile-reader-controls,
-.mobile-reader-start {
+.mobile-reader-controls {
   display: none;
 }
 
@@ -837,6 +831,19 @@ kbd {
   pointer-events: none;
 }
 
+.reading-future-curtain {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  min-height: 2px;
+  border-top: 1px solid #4b6176;
+  background: var(--curtain);
+  cursor: default;
+  touch-action: pan-y;
+}
+
 .reading-curtain > span {
   position: absolute;
   right: 24px;
@@ -869,7 +876,7 @@ kbd {
   margin-top: 1.15em;
 }
 
-.reading-line:hover:not(.active) {
+.reading-line.window-visible:hover:not(.active) {
   color: var(--cobalt-deep);
 }
 
@@ -952,6 +959,78 @@ kbd {
   font-weight: 650;
   text-decoration-color: var(--rule);
   text-underline-offset: 3px;
+}
+
+.reader-start-gate {
+  position: fixed;
+  z-index: 10;
+  inset: 0 0 0 240px;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: clamp(32px, 7vw, 96px);
+  background: var(--curtain);
+  color: var(--reading);
+  text-align: center;
+}
+
+.reader-start-gate > div {
+  display: grid;
+  justify-items: center;
+  width: min(100%, 660px);
+}
+
+.reader-start-gate p {
+  margin: 0 0 18px;
+  color: #ccd7e0;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.reader-start-gate h2 {
+  max-width: 18ch;
+  margin: 0 0 clamp(34px, 6vh, 64px);
+  font-size: clamp(2rem, 4.7vw, 4.75rem);
+  font-weight: 650;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.reader-start-orb {
+  display: grid;
+  width: 140px;
+  height: 140px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--cobalt);
+  color: var(--reading);
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reader-start-orb:hover {
+  background: var(--cobalt-deep);
+  transform: scale(1.025);
+}
+
+.reader-start-orb:focus-visible {
+  outline-color: var(--reading);
+  outline-offset: 5px;
+}
+
+.reader-start-gate span {
+  margin-top: 22px;
+  color: #ccd7e0;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Quiz */
@@ -1666,6 +1745,27 @@ kbd {
     top: 0;
   }
 
+  .reader-start-gate {
+    inset: 56px 0 0;
+    padding: 32px 22px max(32px, env(safe-area-inset-bottom));
+  }
+
+  .reader-start-gate p {
+    margin-bottom: 14px;
+    font-size: 0.75rem;
+  }
+
+  .reader-start-gate h2 {
+    margin-bottom: clamp(28px, 6vh, 48px);
+    font-size: clamp(2rem, 10vw, 3.25rem);
+  }
+
+  .reader-start-orb {
+    width: 124px;
+    height: 124px;
+    font-size: 1.125rem;
+  }
+
   .reading-curtain > span {
     right: 14px;
     bottom: 12px;
@@ -1699,32 +1799,6 @@ kbd {
     padding-bottom: env(safe-area-inset-bottom);
     border-top: 1px solid var(--rule);
     background: var(--utility);
-  }
-
-  .mobile-reader-start {
-    position: fixed;
-    z-index: 20;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    min-height: var(--mobile-dock-height);
-    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
-    border-top: 1px solid var(--rule);
-    background: var(--utility);
-  }
-
-  .mobile-reader-start > span {
-    color: var(--muted);
-    font-size: 0.8125rem;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .mobile-reader-start .primary-button {
-    min-width: 144px;
   }
 
   .mobile-reader-controls .reader-control {

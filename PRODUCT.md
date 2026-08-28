@@ -30,17 +30,18 @@ The product is a public website intended for `speed-read.adhv.me`. It is used on
 - Remove navigation, advertising, comments, recommendations, and other non-reading matter from imported pages using explainable extraction heuristics.
 - Preserve a stable document layout; advance only the selected reading boundary when its pace countdown completes.
 - Avoid unnecessary viewport movement. On desktop, page only when the active line crosses a safe upper or lower band. On mobile, preserve touch scrolling until the curtain consumes the usable screen, then jump exactly one usable page without animation; page upward symmetrically when the active line leaves above.
-- Obscure the text above the selected line so the reader cannot fall back and re-read it; moving the line changes the cover and, only at viewport thresholds, the scroll position—never document geometry.
+- Obscure the text above the selected line and below the next two lines. The active line plus two lines of look-ahead are the only readable window, so the reader can skip ahead deliberately without exposing the rest of the article. Moving the line changes only the two covers and, at viewport thresholds, the scroll position—never document geometry.
 - Move the selected line with Up/Down or touch controls and adjust target pace with Left/Right or touch controls.
 - Let a reader select any visible line directly.
 - Show an animated, non-distracting countdown marker beside the selected line; its completion advances the boundary, while manual line and pace changes restart it.
-- Wait for an explicit Start after initial preparation, refresh, or rerun; hidden tabs pause and restart the current line's countdown when visible.
+- Wait for an explicit Start after initial preparation, refresh, or rerun. Before Start, cover the entire reading field with the article title and one large central Start action; hidden tabs pause and restart the current line's countdown when visible.
 - Store prepared article bodies in a quota-aware, LRU-pruned IndexedDB library. Store only small session summaries and pace in localStorage. Restore saved content and word position from the URL hash; ignore hashes whose article has been pruned.
 - Let completed sessions rerun their saved article when it is still present locally.
 - After a completed read, optionally create a four-question comprehension check with GPT-5.6 Luna. Save the generated quiz and score only with the local session, restore it from its hash, and omit the entire flow when the server has no OpenAI secret.
+- When pasted prose has no trustworthy title of its own, optionally ask GPT-5.6 Luna for a short factual title before storing it. If title generation is unavailable or fails, keep the local generic fallback and continue without blocking the reading.
 - After a scored quiz, make the next Wikipedia roll the primary action so several articles can be read in sequence.
 - Derive accuracy-by-speed summaries and an article log from completed local sessions; do not upload or synchronize this history.
-- Keep quiz generation stateless and bounded: same-origin requests, per-browser and shared-network rate limits, a 16,000-character source ceiling, no model tools, strict structured output, server-side output validation, and an untrusted-source prompt boundary.
+- Keep AI generation stateless and bounded: same-origin requests, per-browser and shared-network rate limits, source ceilings of 6,000 characters for titles and 16,000 for quizzes, no model tools, strict structured output, server-side output validation, and an untrusted-source prompt boundary.
 - Use no account, server database, or cross-device sync.
 - Deploy through the owner's existing Cloudflare Pages infrastructure. URL extraction and optional quiz generation may use stateless Pages Functions; neither may persist fetched links or text.
 
