@@ -969,7 +969,7 @@ function RoundView({
 
   return (
     <main className="workspace round-workspace">
-      {submitted ? <header className="round-header">
+      {submitted && <header className="round-header">
         <div>
           <p className="section-label">
             Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm
@@ -988,15 +988,7 @@ function RoundView({
             questions={round.questions}
           />
         )}
-      </header> : (
-        <header className="quiz-intro">
-          <p>Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm</p>
-          <div className="quiz-time-strike">
-            <h1>Quiz time!</h1>
-            <span>3/4 to pass</span>
-          </div>
-        </header>
-      )}
+      </header>}
 
       {submitted && (
         <section className="round-standing" aria-label="Your standing">
@@ -1011,7 +1003,12 @@ function RoundView({
         </section>
       )}
 
-      <form className="quiz-form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
+      <form className={`quiz-form${submitted ? '' : ' quiz-live'}`} onSubmit={(event) => { event.preventDefault(); submit(); }}>
+        {!submitted && (
+          <p className="quiz-round-meta">
+            <b>Quiz time!</b> · Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm
+          </p>
+        )}
         <div className="quiz-progress" aria-label={`Question ${questionIndex + 1} of ${quiz.questions.length}`}>
           {quiz.questions.map((item, index) => (
             <i
