@@ -121,6 +121,24 @@ test('rolling uses one serial, identified Wikipedia request before extraction', 
     .toBeLessThan(requests.findIndex((item) => item.includes('/api/extract')));
 });
 
+test('the rolling die holds the mobile visual center', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'The desktop transition has its own full-height composition.');
+  await page.route('**/api/extract', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await route.fulfill({ json: WIKIPEDIA_ARTICLE });
+  });
+  await page.goto('/');
+  await page.locator('.roll-action').click();
+  await expect(page.getByRole('main', { name: 'Rolling an article' })).toBeVisible();
+  await expect(page.locator('.roll-workspace')).toHaveCSS('align-content', 'center');
+  expect(await page.evaluate(() => {
+    const die = document.querySelector('.die-scene')!.getBoundingClientRect();
+    const workspace = document.querySelector('.roll-workspace')!.getBoundingClientRect();
+    return Math.abs(die.top + die.height / 2 - (workspace.top + workspace.height / 2));
+  })).toBeLessThanOrEqual(1);
+  await page.screenshot({ path: testInfo.outputPath('rolling-mobile.png'), fullPage: true });
+});
+
 test('the bet screen quotes the stake and takes a speed from the keyboard', async ({ page }, testInfo) => {
   await page.goto('/');
   await rollToBetScreen(page);
