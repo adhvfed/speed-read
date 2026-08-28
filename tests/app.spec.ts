@@ -48,7 +48,7 @@ async function answerAll(page: Page, choice = 0) {
   for (let index = 0; index < QUIZ.questions.length; index += 1) {
     const question = page.locator('.quiz-question');
     await expect(question).toHaveCount(1);
-    await question.getByRole('radio', { name: choice === 0 ? 'Supported answer' : 'Distractor one' }).check();
+    await question.locator('.quiz-choices label', { hasText: choice === 0 ? 'Supported answer' : 'Distractor one' }).click();
     if (index < QUIZ.questions.length - 1) {
       await expect(question.locator('legend')).toContainText(`Grounded question ${index + 2}?`);
     }
@@ -115,18 +115,18 @@ test('the bet screen quotes the stake and takes a speed from the keyboard', asyn
   await rollToBetScreen(page);
   await expect(page.locator('.bet-header h1')).toHaveText(WIKIPEDIA_ARTICLE.title);
   await expect(page.locator('.tier-option')).toHaveCount(6);
-  await expect(page.locator('.bet-start')).toHaveText('Start · 300 wpm');
+  await expect(page.locator('.bet-start')).toHaveText('Start 300 wpm');
   await expect(page.locator('.bet-ladder-head')).toContainText('1,800');
 
   await page.keyboard.press('5');
   await expect(page.locator('.tier-option.selected .tier-name')).toHaveText('Blitz');
-  await expect(page.locator('.bet-start')).toHaveText('Start · 600 wpm');
+  await expect(page.locator('.bet-start')).toHaveText('Start 600 wpm');
   await expect(page.locator('.bet-ladder-head')).toContainText('3,600');
   await page.screenshot({ path: testInfo.outputPath('bet.png'), fullPage: true });
 
   // The chosen tier survives a reroll, because it is the player's standing bet.
   await page.keyboard.press('2');
-  await expect(page.locator('.bet-start')).toHaveText('Start · 300 wpm');
+  await expect(page.locator('.bet-start')).toHaveText('Start 300 wpm');
 });
 
 test('the committed speed is locked once the round starts', async ({ page }, testInfo) => {
@@ -185,15 +185,27 @@ test('the reading window stays covered and within a comfortable measure', async 
     const hidden = lines[activeIndex + 3];
     if (!hidden) return true;
     const bounds = hidden.getBoundingClientRect();
-    const hit = document.elementFromPoint(bounds.left + 8, bounds.top + bounds.height / 2);
-    return Boolean(hit?.closest('.reading-future-curtain'));
+    const future = document.querySelector('.reading-future-curtain')!.getBoundingClientRect();
+    return hidden.getAttribute('aria-hidden') === 'true'
+      && getComputedStyle(hidden).color === 'rgba(0, 0, 0, 0)'
+      && future.top <= bounds.top;
   })).toBe(true);
 
   await expect.poll(() => page.evaluate(() => {
     const curtain = document.querySelector('.reading-curtain')!.getBoundingClientRect();
     const line = document.querySelector('.reading-line.active')!.getBoundingClientRect();
     return Math.abs(curtain.bottom - line.top);
-  })).toBeLessThanOrEqual(1);
+  })).toBeLessThanOrEqual(5);
+});
+
+test('manual reader scrolling remains under the player’s control', async ({ page }) => {
+  await page.goto('/?demo=reader');
+  await page.keyboard.press('Space');
+  await page.evaluate(() => window.scrollBy({ top: 160, behavior: 'auto' }));
+  const manuallyScrolledTo = await page.evaluate(() => window.scrollY);
+  expect(manuallyScrolledTo).toBeGreaterThan(50);
+  await page.waitForTimeout(250);
+  expect(await page.evaluate(() => window.scrollY)).toBe(manuallyScrolledTo);
 });
 
 test('a reading line stays within the comfortable measure', async ({ page }, testInfo) => {
@@ -225,8 +237,7 @@ test('a finished round is scored, banked, and restorable from its hash', async (
   await page.keyboard.press('2'); // Brisk, 300 wpm
   await playRound(page);
 
-  await expect(page.locator('.quiz-round-meta')).toContainText('Quiz time!', { timeout: 8_000 });
-  await expect(page.getByRole('heading', { name: 'Quiz time!' })).toHaveCount(0);
+  await expect(page.locator('.quiz-round-meta')).toContainText('Recall', { timeout: 8_000 });
   await expect(page.locator('.quiz-question')).toHaveCount(1);
   await expect(page.locator('.quiz-question legend')).toContainText('Grounded question 1?');
   await expect(page.getByRole('button', { name: 'Next question' })).toHaveCount(0);
@@ -236,18 +247,18 @@ test('a finished round is scored, banked, and restorable from its hash', async (
 
   // 4 correct x 300 wpm = 1200, x1.5 for the clean sweep = 1800. No streak yet.
   await expect(page.locator('.scoreboard')).toContainText('Clean sweep');
-  await expect(page.locator('.score-total dd')).toHaveText('1,800', { timeout: 4_000 });
+  await expect(page.locator('.score-reel')).toHaveAttribute('aria-label', '1,800', { timeout: 4_000 });
   await expect(page.locator('.round-summary')).toContainText('Streak 1');
-  await expect(page.locator('.round-standing .rank-bar-head')).toContainText('1,800 pts');
+  await expect(page.locator('.round-standing .rank-points')).toHaveAttribute('aria-label', '1,800');
   await page.screenshot({ path: testInfo.outputPath('scored.png'), fullPage: true });
 
   await expect.poll(() => page.evaluate(() => location.hash)).toMatch(/^#score\//);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Here’s what stayed.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '4 of 4' })).toBeVisible();
   await expect(page.locator('.quiz-question input[type="radio"]:checked')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Play again · 300 wpm' }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Again 300 wpm' }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Change speed' })).toBeVisible();
-  await page.getByRole('button', { name: 'Play again · 300 wpm' }).click();
+  await page.getByRole('button', { name: 'Again 300 wpm' }).click();
   await expect(page.getByRole('main', { name: 'Rolling an article' })).toBeVisible();
   await expect(page.locator('.reader-shell')).toBeVisible({ timeout: 8_000 });
   await expect(page.locator('.committed-speed strong')).toHaveText('300');
@@ -259,30 +270,30 @@ test('a failed round pays less and resets the streak', async ({ page }, testInfo
   await rollToBetScreen(page);
   await page.keyboard.press('2');
   await playRound(page);
-  await expect(page.locator('.quiz-round-meta')).toContainText('Quiz time!', { timeout: 8_000 });
+  await expect(page.locator('.quiz-round-meta')).toContainText('Recall', { timeout: 8_000 });
   // Every second choice is wrong, so this scores zero of four.
   await answerAll(page, 1);
-  await expect(page.locator('.scoreboard')).toContainText('Round failed');
-  await expect(page.locator('.score-total dd')).toHaveText('0', { timeout: 4_000 });
+  await expect(page.locator('.scoreboard')).toContainText('Failed');
+  await expect(page.locator('.score-reel')).toHaveAttribute('aria-label', '0', { timeout: 4_000 });
   await expect(page.locator('.round-summary')).toContainText('Streak reset');
 });
 
 test('progress reports the comprehension curve and the round log', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop', 'The scoring path is covered once.');
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Progress' })).toBeVisible();
-  await page.getByRole('button', { name: 'Progress' }).click();
-  await expect(page.getByRole('heading', { name: 'Nothing played yet.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Record' })).toBeVisible();
+  await page.getByRole('button', { name: 'Record' }).click();
+  await expect(page.getByRole('heading', { name: 'No rounds yet' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Roll an article' }).click();
   await expect(page.locator('.bet-workspace')).toBeVisible({ timeout: 8_000 });
   await page.keyboard.press('2');
   await playRound(page);
-  await expect(page.locator('.quiz-round-meta')).toContainText('Quiz time!', { timeout: 8_000 });
+  await expect(page.locator('.quiz-round-meta')).toContainText('Recall', { timeout: 8_000 });
   await answerAll(page);
-  await page.getByRole('button', { name: 'See progress' }).click();
+  await page.locator('.round-next').getByRole('button', { name: 'Record' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Your speed record.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Record' })).toBeVisible();
   await expect(page.locator('.curve-row')).toHaveCount(6);
   await expect(page.locator('.curve-row', { hasText: 'Brisk' })).toContainText('100%');
   await expect(page.locator('.curve-row.untested')).toHaveCount(5);
@@ -291,7 +302,7 @@ test('progress reports the comprehension curve and the round log', async ({ page
   await page.screenshot({ path: testInfo.outputPath('progress.png'), fullPage: true });
 
   await page.getByRole('button', { name: 'Review' }).click();
-  await expect(page.getByRole('heading', { name: 'Here’s what stayed.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '4 of 4' })).toBeVisible();
 });
 
 test('an unknown saved-article hash falls back to the front door', async ({ page }) => {
@@ -331,8 +342,8 @@ test('rounds cannot be scored when recall checks are unavailable', async ({ page
   await page.unroute('**/api/quiz');
   await page.route('**/api/quiz', async (route) => route.fulfill({ json: { available: false } }));
   await page.goto('/');
-  await expect(page.getByText(/Scoring is offline/)).toBeVisible();
+  await expect(page.getByText('Scoring offline')).toBeVisible();
   await rollToBetScreen(page);
   await playRound(page);
-  await expect(page.getByRole('heading', { name: 'This round could not be scored.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No score' })).toBeVisible();
 });

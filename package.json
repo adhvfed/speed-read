@@ -16,7 +16,9 @@
     "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
+    "@fontsource-variable/archivo": "^5.3.0",
     "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+    "@fontsource-variable/literata": "^5.3.0",
     "@mozilla/readability": "^0.6.0",
     "linkedom": "^0.18.13",
     "react": "^19.2.0",

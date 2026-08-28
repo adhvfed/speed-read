@@ -1,55 +1,93 @@
 ---
 name: wikispreed
-description: A Wikipedia speed-reading game where the player bets a reading speed and a recall check settles it.
+description: A Wikipedia speed-reading arcade game where the player bets a reading speed and a recall check settles it.
 colors:
-  cobalt-signal: "#4488FF"
-  cobalt-deep: "#2F6FE0"
-  ground: "#0D1016"
-  surface: "#161B23"
-  raised: "#1E2532"
-  curtain: "#0F141C"
-  reading-field: "#FFFDFC"
-  reading-ink: "#14202B"
-  ink: "#EEF2F7"
-  muted-ink: "#8A94A3"
-  rule: "#2B3442"
-  error: "#FF6B6B"
-  success: "#3DDC97"
-  tier-cruise: "#3DDC97"
-  tier-brisk: "#35D0D6"
-  tier-quick: "#4488FF"
-  tier-sprint: "#F5C451"
-  tier-blitz: "#FF9645"
-  tier-reckless: "#FF5D73"
+  cabinet: "#301063"
+  cabinet-deep: "#190638"
+  cabinet-raised: "#431C86"
+  keyline: "#0B0320"
+  marquee-yellow: "#FFD119"
+  marquee-yellow-deep: "#B98C00"
+  pop-red: "#FF3355"
+  go-green: "#39E36B"
+  paint-white: "#FFF4E2"
+  paint-lilac: "#C0A8EC"
+  screen: "#F7F1E1"
+  screen-ink: "#1B1206"
+  screen-dim: "#736247"
+  screen-rule: "#D9CCAE"
+  error-soft: "#FF8FA3"
+  shade: "rgb(4 1 14 / 0.72)"
+  shade-soft: "rgb(4 1 14 / 0.24)"
+  lamp-cruise: "#4FE07A"
+  lamp-brisk: "#28D8E0"
+  lamp-quick: "#4DA6FF"
+  lamp-sprint: "#FFC01F"
+  lamp-blitz: "#FF8320"
+  lamp-reckless: "#FF3B5C"
 typography:
-  display:
-    fontFamily: "Atkinson Hyperlegible Next, Arial, sans-serif"
-    fontSize: "2.25rem"
-    fontWeight: 650
-    lineHeight: 1.08
-    letterSpacing: "-0.025em"
+  marquee:
+    fontFamily: "Archivo Variable, Arial Black, sans-serif"
+    fontSize: "4rem"
+    fontWeight: 900
+    fontStretch: "118%"
+    lineHeight: 0.88
+    letterSpacing: "-0.02em"
   title:
-    fontFamily: "Atkinson Hyperlegible Next, Arial, sans-serif"
-    fontSize: "1.25rem"
-    fontWeight: 650
-    lineHeight: 1.2
+    fontFamily: "Archivo Variable, Arial Black, sans-serif"
+    fontSize: "1.5rem"
+    fontWeight: 800
+    fontStretch: "108%"
+    lineHeight: 1
     letterSpacing: "-0.01em"
+  readout:
+    fontFamily: "Archivo Variable, Arial, sans-serif"
+    fontSize: "2.5rem"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "-0.02em"
   body:
-    fontFamily: "Atkinson Hyperlegible Next, Arial, sans-serif"
-    fontSize: "1.375rem"
+    fontFamily: "Literata Variable, Georgia, serif"
+    fontSize: "1.3125rem"
     fontWeight: 400
-    lineHeight: 1.62
+    lineHeight: 1.6
     letterSpacing: "normal"
-  label:
-    fontFamily: "Atkinson Hyperlegible Next, Arial, sans-serif"
-    fontSize: "0.8125rem"
-    fontWeight: 600
-    lineHeight: 1.2
-    letterSpacing: "0.025em"
+  plate:
+    fontFamily: "Archivo Variable, Arial, sans-serif"
+    fontSize: "0.75rem"
+    fontWeight: 800
+    lineHeight: 1
+    letterSpacing: "0.1em"
+  scale:
+    marquee-xl: "6rem"
+    marquee-lg: "5rem"
+    marquee-md: "4rem"
+    marquee-sm: "3rem"
+    marquee-xs: "2.75rem"
+    readout-xl: "2.5rem"
+    readout-lg: "2.25rem"
+    readout-md: "2.125rem"
+    readout-sm: "2rem"
+    title-xl: "1.875rem"
+    title-lg: "1.75rem"
+    title-md: "1.625rem"
+    title-sm: "1.5rem"
+    title-xs: "1.25rem"
+    ui-xl: "1.125rem"
+    ui-lg: "1.0625rem"
+    ui-md: "1rem"
+    ui-sm: "0.9375rem"
+    ui-xs: "0.875rem"
+    label-lg: "0.8125rem"
+    label-md: "0.75rem"
+    label-sm: "0.6875rem"
+    label-xs: "0.625rem"
+    label-2xs: "0.5625rem"
 rounded:
-  tight: "2px"
-  control: "6px"
-  panel: "12px"
+  hard: "3px"
+  panel: "8px"
+  button: "10px"
+  round: "999px"
 spacing:
   hair: "4px"
   compact: "8px"
@@ -60,155 +98,220 @@ spacing:
   field: "48px"
 components:
   button-primary:
-    backgroundColor: "{colors.cobalt-signal}"
-    textColor: "{colors.reading-field}"
-    rounded: "{rounded.control}"
-    padding: "12px 18px"
+    backgroundColor: "{colors.marquee-yellow}"
+    textColor: "{colors.keyline}"
+    rounded: "{rounded.button}"
+    padding: "16px 26px"
+    note: "Sits on a 5px solid keyline with a 6px hard drop of its own deep shade. Presses 6px down on active."
   button-quiet:
     backgroundColor: "transparent"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.control}"
-    padding: "10px 12px"
-  input:
-    backgroundColor: "{colors.reading-field}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.control}"
-    padding: "14px 16px"
+    textColor: "{colors.paint-white}"
+    rounded: "{rounded.button}"
+    padding: "12px 16px"
+    note: "3px keyline border, no drop. Fills cabinet-raised on hover."
 ---
 
 # Design System: WikiSpreed
 
 ## Overview
 
-**Creative North Star: "The Bet and the Boundary"**
+**Creative North Star: "The Cabinet"**
 
-WikiSpreed is a flat humanist instrument playing a game. A die rolls to choose an English Wikipedia article; the player stakes a reading speed on a ladder of six tiers; then an opaque curtain crosses the stable text one line at a time at exactly that speed, with no way to slow down. A recall check settles the bet and a scoreboard tallies what it paid.
+WikiSpreed is an arcade machine that happens to be full of Wikipedia. The chrome
+around the game is silkscreened cabinet art: flat saturated paint, hard black
+keylines, marquee lettering with a hard offset shadow, chunky buttons that
+physically travel when pressed, and lamps that are either lit or dark. The
+article itself appears on a warm screen behind the bezel, set in book type,
+because the one thing a cabinet must not do is make the text hard to read.
 
-The game feel comes from scale, tabular numerals, a score that counts up, and the tension of a locked clock. It does not come from new colour, confetti, badges, mascots, or casino chrome. The palette is unchanged from the reading instrument it grew out of, because the reading surface still has to be calm enough to read at 750 words per minute.
+That split is the whole system. **Everything outside the screen shouts.
+Everything on the screen is quiet.** It is also why the copy is short: a cabinet
+does not explain itself, it lights up a word and waits for you to hit the
+button.
 
 **Key Characteristics:**
 
-- One flat cover plane and one cobalt reading edge.
-- One authored dice-roll transition that carries the player from choice into the wager.
-- A speed ladder that quotes its own odds, its own clock, and the player's own record.
-- Stable, high-legibility text at a measured 65–72 character line.
-- Scores shown as tabular arithmetic the player can check, not as decorative gauges.
-- Motion only for the dice roll, the countdown, the score tally, and direct state changes.
+- One drenched grape-purple cabinet field, painted flat, never gradient-lit.
+- Hard 3–5px keylines around every real object; hard offset shadows under every
+  display word.
+- Buttons are physical: a colour face over a deep side, pressed down on `:active`.
+- State is a lamp. A thing is lit or it is dark; there is no in-between wash.
+- Numbers are readouts, set in tabular Archivo at readout scale.
+- The reading screen is warm paper inside a bezel, set in Literata.
 
 ## Colors
 
-The game runs on a near-black ground so the reading field can be the one lit
-surface in it. Reading at 750 wpm is measurably harder on a dark background, so
-the article keeps paper-light semantics scoped to the reader; everything around
-it is dark. The contrast is the point: the reading window reads as a spotlight.
+The scene is a dim room with a bright machine in it, so the cabinet is dark and
+saturated and the screen is the lit thing. This is not a dark UI theme with an
+accent; it is a painted object with a display in it.
 
-### Ground
+### Cabinet
 
-- **Ground** (#0D1016): the application field.
-- **Surface** (#161B23): utility column and docks.
-- **Raised** (#1E2532): standing panels, scoreboards, hovered rows.
-- **Curtain** (#0F141C): covers passed and future article text.
-- **Rule** (#2B3442): hairlines and empty tracks.
-- **Ink** (#EEF2F7) and **Muted Ink** (#8A94A3): type on the dark ground.
+- **Cabinet** (#301063): the machine's body. The dominant field on every screen
+  outside the reader, carrying 50–70% of the surface.
+- **Cabinet Deep** (#190638): recessed wells, the inside of a slot, empty tracks.
+- **Cabinet Raised** (#431C86): raised panels and hover states.
+- **Keyline** (#0B0320): every hard border and every hard offset shadow. It is a
+  line and a shadow colour, never a ground.
+- **Paint White** (#FFF4E2) and **Paint Lilac** (#C0A8EC): type on the cabinet.
+  Secondary type is tinted from the cabinet's own violet, never grey.
 
-### Reading Field
+### Screen
 
-- **Reading White** (#FFFDFC) with **Reading Ink** (#14202B). Scoped to the
-  reader, which redefines ink, muted, and rule back to paper values.
+- **Screen** (#F7F1E1) with **Screen Ink** (#1B1206), **Screen Dim** (#736247),
+  **Screen Rule** (#D9CCAE). Scoped to the reader and the quiz, which redefine
+  ink, muted, and rule to paper values.
 
 ### Signal
 
-- **Cobalt** (#4488FF): live edge, focus, primary action, progress. Brightened
-  from the old print-weight cobalt, which goes muddy on a dark ground.
-- **Success** (#3DDC97) and **Error** (#FF6B6B): passed and failed rounds,
-  correct and incorrect answers. Always paired with words, never colour alone.
+- **Marquee Yellow** (#FFD119): the primary action, and only the primary action.
+  If it is yellow, it is the thing to hit.
+- **Pop Red** (#FF3355) and **Go Green** (#39E36B): failed and passed, wrong and
+  right. Always paired with a word or a shape, never colour alone.
 
-### The Heat Ladder
+### The Lamp Ladder
 
-The six speed tiers are a risk ladder, so they are coloured as one: Cruise
-green, Brisk cyan, Quick cobalt, Sprint amber, Blitz orange, Reckless red. The
-tier a player bets colours the stake button, the reading boundary, the
-countdown, the progress bar, and its own row in the comprehension curve. This
-is the only place in the system where colour is decorative-adjacent, and it
-earns its place by making risk legible before the bet is placed.
+The six speed tiers are a risk ladder and are lit like one: Cruise green, Brisk
+cyan, Quick blue, Sprint yellow, Blitz orange, Reckless red. The tier a player
+bets lights its own row, the stake button, the reading bezel, the countdown
+ring, the HUD bar, and its bar in the record. Unselected tiers are unlit, which
+means their colour is present at low intensity in the lamp only, not spread
+across the row.
 
 ### Named Rules
 
-**The Live Edge Rule.** Cobalt marks only what the player can act on now, what
-they have earned, and how far they have come.
+**The Lit Rule.** Colour at full intensity means live. A tier that is not
+selected, a lamp that is not earned, and a control that is not available are
+unlit, and unlit means dark cabinet paint, not a faded tint of the colour.
 
-**The Heat Rule.** A tier colour appears only on things belonging to that tier.
-It never decorates a neutral surface.
+**The Yellow Rule.** Marquee yellow is the primary action and nothing else. It
+never decorates, never marks a heading, never fills a chart.
+
+**The Quiet Screen Rule.** Nothing in the cabinet's vocabulary crosses onto the
+reading screen: no keyline shadows on article text, no lamps in the margin, no
+uppercase display type in the prose. The bezel is where the two worlds meet.
 
 **The Honest Number Rule.** Every score on screen is arithmetic the player could
-redo by hand. No number is inflated for effect.
+redo by hand. A readout is styled like a machine's readout; it is never inflated.
 
-**The Lazy Copy Rule.** Prefer the shortest phrasing that still carries the
-meaning. A game does not explain itself; it lets you press the button. Where a
-number can replace a sentence, use the number.
+**The Lazy Copy Rule.** A cabinet lights up one word. Prefer the shortest
+phrasing that still carries the meaning, prefer a number to a sentence, and
+prefer a lit lamp to a number. Sentences that explain what the player is about
+to see are cut, not shortened.
 
 ## Typography
 
-**Display and Body Font:** Atkinson Hyperlegible Next (with Arial fallback), with tabular numerals for every measurement and score.
+**Display and UI:** Archivo Variable, run wide (`font-stretch` 104–118%) and
+heavy (700–900) for marquee lettering, with tabular numerals on every readout.
+Cabinet lettering is uppercase with tight tracking and a hard offset shadow in
+keyline; that shadow is the world's native device and is not a stray glow.
 
-**Character:** One purpose-built legibility family keeps long reading, small labels, and large scores related. Hierarchy comes from size, weight, and space rather than a display costume.
+**Reading:** Literata Variable, a face drawn for sustained screen reading, at
+1.3125rem/1.6 on desktop. It also sets the quiz, because the quiz is still
+reading.
 
 ### Hierarchy
 
-- **Display** (680, up to 4.25rem, 0.99): the front-door question and screen titles only.
-- **Article Title** (680, 2rem–3.5rem, stepping down as the title lengthens): the bet screen.
-- **Round Score** (520, 2.5rem, tabular): the one number a scoreboard exists to show.
-- **Body** (400, 1.375rem desktop / 1.125rem mobile, 1.62): article content at 65–72 characters per line.
-- **UI Body** (400–650, 0.9375–1.0625rem, 1.4): controls, ladders, and tables.
-- **Label** (650, 0.8125rem, 0.025em): measurement labels; sentence case except abbreviations.
+- **Marquee** (900, wdth 118, up to 5rem, 0.88): the wordmark, screen titles,
+  the big verdict words. Uppercase, offset-shadowed.
+- **Readout** (800, tabular, 2.5–4rem): scores, wpm, multipliers. The number is
+  the headline on any screen that has one.
+- **Title** (800, wdth 108, 1.25–2.5rem): article titles and section heads.
+  Article titles keep sentence case, because they are Wikipedia's words.
+- **Body** (Literata 400, 1.3125rem desktop / 1.0625rem mobile, 1.6): article
+  content at 65–72 characters per line.
+- **Plate** (800, 0.75rem, 0.1em, uppercase): the small engraved labels
+  silkscreened onto a cabinet — "LOCKED", "HIGH SCORE", "4/4 PAYS".
 
-**The Unbroken Line Rule.** Reader text sizes change only at structural breakpoints; nothing during a round causes the article to reflow.
+**The Unbroken Line Rule.** Reader text sizes change only at structural
+breakpoints; nothing during a round causes the article to reflow.
 
-**The Real Measure Rule.** The reading column is sized from the measured average character width of the article's own text, not from the `ch` unit, which is the width of a zero and sets roughly ninety-four characters where seventy is intended.
+**The Real Measure Rule.** The reading column is sized from the measured average
+character width of the article's own text, not from the `ch` unit.
 
 ## Layout
 
-Desktop reading uses a 240px utility column and a flexible article region, with the reading column capped at the measured 68-character width and centred in the remaining space. The curtain belongs to the article region while its boundary crosses the gutter, so the active line, the countdown, and the utility column read as one interaction.
+Every screen outside the reader is a cabinet panel: a keylined field on the
+cabinet ground, centred, with its own marquee head. The reader is a bezel with a
+screen in it — a HUD strip across the top, the screen below, controls docked at
+the bottom on mobile and in a side rail on desktop.
 
-At 760px and below, the utility column becomes a compact top status row and a fixed bottom control dock of three controls. Spacing follows a 4px base with 8, 12, 16, 24, 32, and 48px stops.
+Desktop uses a 248px cabinet rail and a flexible play area. At 760px and below
+the rail collapses into a top marquee bar and a fixed three-button dock, sized
+so the bet screen's ladder and its start button both clear the fold. Spacing
+follows a 4px base with 8, 12, 16, 24, 32, and 48px stops.
 
 ## Elevation & Depth
 
-The system is flat. It uses no resting shadows, translucent glass, blur, texture, or fake material. Depth is conveyed through opaque adjacent colour fields, hairline divisions, and the curtain overlapping the article without changing layout.
+Two shadow languages, used for two different things.
+
+- **Painted offset** (`Npx Npx 0 var(--keyline)`, no blur): display lettering,
+  buttons, lamps, panels. This is silkscreen registration and it is hard-edged
+  on purpose. Marquee words carry it as a `0.085em` text-shadow so the offset
+  scales with the type.
+- **Real lift** (offset plus blur, `--shade` at low alpha): things that sit above
+  the cabinet in space — the tumbling die, the screen in its bezel, the curtain
+  edge. Only these get blur.
+
+One exception is documented rather than suppressed: the rail carries a 4px
+keyline on its inner edge, which reads as an accent tab in the abstract but is
+the black edging every painted cabinet panel actually has. It is a keyline
+between two full-height fields, not a stripe on a card.
+
+No glass, no backdrop blur, no gradient decoration. A gradient is permitted only
+where a physical object has one: the bevel of a round button, the vignette
+inside the bezel.
 
 ## Components
 
-### Roll Action
+### The Roll Button
 
-The front door is one broad cobalt field with a single die and one label. It is the largest interactive element on the page and there is no competing intake.
+One round arcade button, 168px across, marquee yellow over a deep yellow side,
+5px keyline, hard drop. It presses 6px down and its drop collapses to match. It
+is the largest thing on the front door and nothing competes with it.
 
-### Speed Ladder
+### The Lamp Ladder
 
-Six named tiers from Cruise (200 wpm) to Reckless (750 wpm), one row each, selectable by click or by number key. Every row carries its payout multiplier, the estimated clock for this article, and the player's own accuracy at that tier, marked in error red once it falls below half. The selected row takes a cobalt left edge and a tinted ground. The ladder header quotes what a clean sweep at the selected tier pays, so the wager is a number before it is a feeling.
+Six named tiers from Cruise (200 wpm) to Reckless (750 wpm), one row each,
+selectable by click or number key. Each row carries a lamp, the tier name, the
+wpm readout, the payout multiplier at readout scale, the clock for this article,
+and the player's own accuracy. The selected row lights: its lamp comes on, its
+field takes the tier colour, and it gains a keyline and a hard drop. Unselected
+rows are dark cabinet with an unlit lamp.
 
-### Reading Curtain
+### The Bezel and the Curtain
 
-Unchanged from the reading instrument. The window sits between two opaque Mineral Curtain planes; the active line and two look-ahead lines are the only visible text, with look-ahead lines set in a lighter ink so the eye anchors on the active line. Passed and farther-ahead text must be fully unreadable.
+The article sits on a warm screen inside a keylined bezel with an inner
+vignette. Passed and future text is covered by cabinet paint — the same paint as
+the machine, so the curtain reads as the machine's own shutter rather than as a
+missing element. The active line and two look-ahead lines are the only readable
+window, and the boundary carries the tier's lamp colour.
 
-### Countdown Marker
+### The Countdown Ring
 
-Two SVG circles share one centre: a quiet limit track and a cobalt meter whose dash offset reflects remaining line time. Under reduced motion the sweep becomes stepped rather than disappearing, because the boundary still advances and the player still needs the warning.
+A chunky lit ring on the active line, in the tier colour, whose sweep drains
+over the line's duration. Under reduced motion the sweep steps rather than
+disappearing, because the boundary advances regardless.
 
-### Committed Speed Panel
+### The HUD
 
-The reader's utility column states the locked speed, its tier, its multiplier, a progress track, and the time remaining. It offers no pace control, because there is none.
+The reader's top strip is a game HUD: locked speed as a readout, a segmented
+energy bar for progress, and the clock remaining. Segments, not a smooth fill,
+because a segmented bar is readable at a glance and a smooth one is a progress
+ring in disguise.
 
-### Scoreboard
+### The Score Reel
 
-A flat panel with a cobalt top edge, or an error top edge on a failed round. It lists the round's arithmetic as a definition list — base pay, clean-sweep bonus, streak bonus — and closes with the round score, which counts up on reveal and appears immediately under reduced motion. A failed round explains in words why it failed.
+Round score is set as individual digits in keylined wells, counting up on
+reveal and static under reduced motion. The tally beneath it is the arithmetic:
+base, clean-sweep bonus, streak bonus.
 
-### Rank Bar
+### The Record
 
-Rank name, lifetime points, a cobalt progress track, and the points remaining to the next rank. It appears in the utility column, on the front door for a returning player, and beneath a finished round, so progress is visible at the moment it changes.
-
-### Comprehension Curve
-
-One row per speed tier with accuracy, sample size, and clean-sweep count. Untested tiers use a dashed track rather than an empty solid one, because a solid empty bar reads as zero rather than as no data. The highest reliably held tier is labelled.
+Progress is a high-score board. The comprehension curve is one segmented bar per
+tier in that tier's lamp colour; untested tiers show empty wells rather than a
+zero-length bar. The round log is a score table with rank position, title, speed,
+result and score.
 
 ## Do's and Don'ts
 
@@ -218,6 +321,7 @@ One row per speed tier with accuracy, sample size, and clean-sweep count. Untest
 - **Do** show the player's own record at a tier at the moment they are choosing it.
 - **Do** keep exactly the current line and two lines of look-ahead readable.
 - **Do** keep article text between 65 and 72 characters per line on desktop.
+- **Do** let a button travel when it is pressed.
 - **Do** show every bonus as arithmetic the player can check.
 - **Do** preserve keyboard, touch, focus, and reduced-motion behaviour as first-class states.
 - **Do** make correctness and pass or fail readable without colour.
@@ -227,7 +331,7 @@ One row per speed tier with accuracy, sample size, and clean-sweep count. Untest
 - **Don't** offer any way to change speed once a round has started.
 - **Don't** continuously auto-scroll, reflow, or move article geometry.
 - **Don't** expose article text before the round or let hidden lines stay clickable.
-- **Don't** celebrate with confetti, badges, mascots, sound, or exclamation marks.
+- **Don't** put cabinet devices on the reading screen.
 - **Don't** compare the player to anyone else, or imply a normative reading speed.
 - **Don't** let a failed round read as a punishment beyond the streak it costs.
-- **Don't** use cobalt on inactive decoration, or invent a colour outside the palette to signal excitement.
+- **Don't** write a sentence where a lit lamp would do.

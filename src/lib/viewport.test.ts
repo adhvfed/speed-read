@@ -3,17 +3,17 @@ import { readingScrollDelta } from './viewport';
 
 describe('reading viewport paging', () => {
   it('does not move the page while a desktop line remains in its safe band', () => {
-    expect(readingScrollDelta({ direction: 1, lineTop: 500, lineBottom: 540, viewportHeight: 800, mobile: false, topInset: 24, bottomInset: 72 })).toBe(0);
+    expect(readingScrollDelta({ direction: 1, lineTop: 500, readableBottom: 700, viewportHeight: 800, topInset: 24, bottomInset: 72 })).toBe(0);
   });
 
-  it('moves a desktop line back toward the reading band only after it crosses the edge', () => {
-    expect(readingScrollDelta({ direction: 1, lineTop: 720, lineBottom: 756, viewportHeight: 800, mobile: false, topInset: 24, bottomInset: 72 })).toBe(416);
-    expect(readingScrollDelta({ direction: -1, lineTop: 10, lineBottom: 46, viewportHeight: 800, mobile: false, topInset: 24, bottomInset: 72 })).toBe(-270);
+  it('jumps the active line to the top before the readable window is obscured', () => {
+    expect(readingScrollDelta({ direction: 1, lineTop: 610, readableBottom: 729, viewportHeight: 800, topInset: 24, bottomInset: 72 })).toBe(586);
+    expect(readingScrollDelta({ direction: -1, lineTop: 10, readableBottom: 130, viewportHeight: 800, topInset: 24, bottomInset: 72 })).toBe(-14);
   });
 
-  it('pages mobile by one usable screen only when the curtain reaches the dock', () => {
-    const input = { direction: 1 as const, lineBottom: 710, viewportHeight: 700, mobile: true, topInset: 56, bottomInset: 76 };
-    expect(readingScrollDelta({ ...input, lineTop: 630 })).toBe(568);
-    expect(readingScrollDelta({ ...input, lineTop: 620 })).toBe(0);
+  it('uses the whole readable window and top inset on mobile', () => {
+    const input = { direction: 1 as const, viewportHeight: 700, topInset: 56, bottomInset: 76 };
+    expect(readingScrollDelta({ ...input, lineTop: 510, readableBottom: 625 })).toBe(454);
+    expect(readingScrollDelta({ ...input, lineTop: 500, readableBottom: 624 })).toBe(0);
   });
 });

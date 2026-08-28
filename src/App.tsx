@@ -1,9 +1,22 @@
 /**
- * THESIS: WikiSpreed is a wager. You roll an article, bet a reading speed you
- * cannot change, and find out from a recall check whether the bet was good.
- * OWN-WORLD: Cool white and mineral-blue planes, one cobalt reading edge, and
- * scoreboards built from tabular numerals rather than badges and confetti.
- * STORY: Roll, commit, read under a locked clock, see what stayed, score, again.
+ * THESIS: WikiSpreed is an arcade cabinet full of Wikipedia. It refuses the
+ * arrangement this category always ships — a dark dashboard with a sidebar,
+ * hairlines and a tabular scoreboard — and puts the game inside a painted
+ * machine instead.
+ * OWN-WORLD: Drenched grape cabinet paint, hard keylines and offset silkscreen
+ * shadows, marquee Archivo run wide and heavy, lamps that are lit or dark,
+ * round buttons that travel when pressed, and one warm screen set in Literata
+ * behind a bezel. Everything outside the screen shouts; the screen stays quiet.
+ * STORY: Hit the big yellow button, a die tumbles, an unknown article lands,
+ * light up a speed you might not survive, read behind the machine's own
+ * shutter, then four buzzer pads settle the bet and the reel counts the score.
+ * FIRST VIEWPORT: Marquee READ FAST at 5rem with a keyline drop, one 168px
+ * round yellow arcade button under it reading ROLL, the instruction plate lit
+ * alongside. Cabinet paint fills the field edge to edge.
+ * FORM: Arcade cabinet, candidate 4 of the grounded list, taken on the user's
+ * explicit steer after the roll's assignment (seed c5692c4a) was rejected for
+ * reading as printed matter. Staging: permissioned disclosure — the article is
+ * absent until the bet is placed, then revealed three lines at a time.
  */
 import {
   useCallback,
@@ -158,13 +171,48 @@ function RollingDie() {
 function Wordmark({ onClick }: { onClick?: () => void }) {
   return (
     <button className="wordmark" onClick={onClick} type="button" aria-label="WikiSpreed home">
-      <span className="wordmark-mark" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </span>
-      <span>WikiSpreed</span>
+      <span className="wordmark-coin" aria-hidden="true" />
+      <span className="wordmark-text" data-text="WikiSpreed">WikiSpreed</span>
     </button>
+  );
+}
+
+/** A cabinet lamp: on or off, never a faded tint of on. */
+function Lamp({ lit, className = '' }: { lit: boolean; className?: string }) {
+  return <span className={`lamp${lit ? ' lit' : ''} ${className}`} aria-hidden="true" />;
+}
+
+/**
+ * A number set as a machine readout: one digit per keylined well, so a score
+ * reads as something the cabinet counted rather than as body copy.
+ */
+function Reel({ value, className = '' }: { value: number; className?: string }) {
+  const characters = value.toLocaleString('en-US').split('');
+  return (
+    <span className={`reel ${className}`} aria-label={value.toLocaleString()}>
+      {characters.map((character, index) => (
+        <span
+          key={`${index}-${character}`}
+          className={character === ',' ? 'reel-gap' : 'reel-digit'}
+          aria-hidden="true"
+        >
+          {character === ',' ? '' : character}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Progress as a row of discrete cells rather than a smooth fill, because a
+ * segmented bar is readable at a glance and a smooth one is a progress ring
+ * wearing a different shape.
+ */
+function EnergyBar({ fraction, className = '' }: { fraction: number; className?: string }) {
+  return (
+    <span className={`energy ${className}`} aria-hidden="true">
+      <i style={{ '--energy-fill': Math.max(0, Math.min(1, fraction)) } as CSSProperties} />
+    </span>
   );
 }
 
@@ -195,15 +243,11 @@ function RankBar({ standing, compact = false }: { standing: PlayerStanding; comp
     <div className={`rank-bar${compact ? ' compact' : ''}`}>
       <div className="rank-bar-head">
         <strong>{rank.current.name}</strong>
-        <span>{standing.points.toLocaleString()} pts</span>
+        <Reel value={standing.points} className="rank-points" />
       </div>
-      <div className="rank-track" role="presentation">
-        <i style={{ '--rank-fraction': `${rank.fraction * 100}%` } as CSSProperties} />
-      </div>
+      <EnergyBar fraction={rank.fraction} className="rank-energy" />
       <p>
-        {rank.next
-          ? `${rank.pointsNeeded.toLocaleString()} to ${rank.next.name}`
-          : 'Top rank reached'}
+        {rank.next ? `${rank.pointsNeeded.toLocaleString()} to ${rank.next.name}` : 'Top rank'}
       </p>
     </div>
   );
@@ -220,32 +264,34 @@ function Shell({
   onNavigate: (view: View) => void;
   children: ReactNode;
 }) {
+  const titleScreen = view === 'home';
   return (
-    <div className="app-shell">
+    <div className={`app-shell${titleScreen ? ' title-screen' : ''}`}>
       <aside className="utility-shell">
         <Wordmark onClick={() => onNavigate('home')} />
         <nav className="primary-nav" aria-label="Primary">
           <button className={view === 'home' ? 'active' : ''} type="button" onClick={() => onNavigate('home')}>
+            <Lamp lit={view === 'home'} />
             Play
           </button>
           <button className={view === 'progress' ? 'active' : ''} type="button" onClick={() => onNavigate('progress')}>
-            Progress
+            <Lamp lit={view === 'progress'} />
+            Record
           </button>
         </nav>
-        {standing.rounds > 0 && (
+        {standing.rounds > 0 && view !== 'home' && (
           <div className="shell-standing">
             <RankBar standing={standing} compact />
             {standing.streak > 0 && (
-              <p className="shell-streak"><b>{standing.streak}</b> round streak</p>
+              <p className="shell-streak"><b>{standing.streak}</b> streak</p>
             )}
           </div>
         )}
-        <p className="local-storage-note">Scores stay in this browser.</p>
       </aside>
       <div className="mobile-app-bar">
         <Wordmark onClick={() => onNavigate('home')} />
         <button className="mobile-progress-link" type="button" onClick={() => onNavigate('progress')}>
-          {standing.rounds > 0 ? `${standing.points.toLocaleString()} pts` : 'Progress'}
+          {standing.rounds > 0 ? <Reel value={standing.points} /> : 'Record'}
         </button>
       </div>
       {children}
@@ -272,43 +318,49 @@ function Home({
   return (
     <main className="workspace home-workspace">
       <section className="home-lead">
-        <p className="eyebrow">Wikipedia speed-reading</p>
-        <h1>Read fast.<br />Prove you got it.</h1>
+        <div className="marquee-housing">
+          <span className="housing-lamps" aria-hidden="true">
+            {Array.from({ length: 9 }, (_, index) => <i key={index} />)}
+          </span>
+          <p className="plate">Wikipedia speed-reading</p>
+          <h1 className="marquee">Read fast</h1>
+        </div>
         <button className="roll-action" type="button" onClick={onRoll}>
-          <DiceIcon />
-          <span>Roll</span>
-          <Arrow direction="right" />
+          <span className="roll-action-face">
+            <DiceIcon />
+            <span>Roll</span>
+          </span>
         </button>
         {rollError && <p className="form-error roll-error" role="alert">{rollError}</p>}
         {quizAvailable === false && (
-          <p className="home-notice" role="status">Scoring is offline. You can still read.</p>
+          <p className="home-notice" role="status">Scoring offline</p>
         )}
       </section>
 
       {returning ? (
         <section className="home-standing" aria-label="Your standing">
+          <p className="plate">High score</p>
           <RankBar standing={standing} />
           <div className="standing-grid">
             <div><span>Streak</span><strong>{standing.streak}</strong></div>
             <div>
               <span>Best clean</span>
-              <strong>{standing.bestClean ?? '0'}</strong><small>wpm</small>
+              <strong>{standing.bestClean ?? 0}</strong><small>wpm</small>
             </div>
             <div><span>Rounds</span><strong>{standing.rounds}</strong></div>
           </div>
           {ceiling && (
-            <p className="standing-note">
-              Reliable at <b>{ceiling.tier.name}</b>. Go faster.
-            </p>
+            <p className="standing-note plate">Holding <b>{ceiling.tier.name}</b></p>
           )}
         </section>
       ) : (
         <section className="home-rules" aria-label="How a round works">
+          <p className="plate">How to play</p>
           <ol>
-            <li><b>Roll</b> an article</li>
-            <li><b>Bet</b> a speed</li>
-            <li><b>Read</b> it, locked</li>
-            <li><b>Answer</b> four questions</li>
+            <li><i aria-hidden="true">1</i><b>Roll</b><span>an article</span></li>
+            <li><i aria-hidden="true">2</i><b>Bet</b><span>a speed</span></li>
+            <li><i aria-hidden="true">3</i><b>Read</b><span>locked</span></li>
+            <li><i aria-hidden="true">4</i><b>Recall</b><span>four questions</span></li>
           </ol>
         </section>
       )}
@@ -321,9 +373,8 @@ function RollTransition({ title }: { title: string }) {
     <main className="workspace roll-workspace" aria-live="polite" aria-label="Rolling an article">
       <RollingDie />
       <div className="roll-copy">
-        <p className="eyebrow">Rolling</p>
-        <h1>{title || 'Choosing an article…'}</h1>
-        <p>{title ? 'Cleaning it up…' : 'No peeking.'}</p>
+        <p className="plate">Rolling</p>
+        <h1>{title || <span className="roll-dots" aria-label="Choosing an article"><i /><i /><i /></span>}</h1>
       </div>
     </main>
   );
@@ -377,17 +428,17 @@ function BetScreen({
   return (
     <main className="workspace bet-workspace" aria-labelledby="bet-title">
       <header className="bet-header">
-        <p className="eyebrow">Your article</p>
+        <p className="plate">Your article</p>
         <h1 id="bet-title" data-length={article.title.length > 44 ? 'long' : article.title.length > 24 ? 'medium' : 'short'}>
           {article.title}
         </h1>
-        <p className="bet-meta">{words.toLocaleString()} words</p>
+        <p className="bet-meta"><b>{words.toLocaleString()}</b> words</p>
       </header>
 
       <section className="bet-ladder" aria-label="Choose your speed">
         <div className="bet-ladder-head">
-          <h2>Bet a speed</h2>
-          <p>4/4 pays <b>{cleanSweepPayout(selectedTier.wpm).toLocaleString()}</b></p>
+          <h2 className="plate">Bet a speed</h2>
+          <p className="plate">4/4 pays <b>{cleanSweepPayout(selectedTier.wpm).toLocaleString()}</b></p>
         </div>
         <ul>
           {SPEED_TIERS.map((tier, index) => {
@@ -404,14 +455,20 @@ function BetScreen({
                   onClick={() => onSelectTier(tier)}
                   onDoubleClick={onStart}
                 >
-                  <kbd aria-hidden="true">{index + 1}</kbd>
+                  <Lamp lit={selected} className="tier-lamp" />
                   <span className="tier-name">{tier.name}</span>
-                  <span className="tier-wpm"><b>{tier.wpm}</b> wpm</span>
+                  <span className="tier-heat" aria-hidden="true">
+                    {SPEED_TIERS.map((cell, cellIndex) => (
+                      <i key={cell.id} className={cellIndex <= index ? 'on' : ''} />
+                    ))}
+                  </span>
+                  <span className="tier-wpm"><b>{tier.wpm}</b><small>wpm</small></span>
                   <span className="tier-multiplier">×{speedMultiplier(tier.wpm).toFixed(1)}</span>
                   <span className="tier-clock">{formatClock(estimatedSeconds(words, tier.wpm))}</span>
                   <span className={`tier-record${risky ? ' risky' : ''}`}>
                     {record && record.rounds > 0 ? `${record.accuracy}%` : 'new'}
                   </span>
+                  <kbd aria-hidden="true">{index + 1}</kbd>
                 </button>
               </li>
             );
@@ -421,7 +478,7 @@ function BetScreen({
 
       <footer className="bet-actions" style={{ '--tier-color': tierColorVar(selectedTier) } as CSSProperties}>
         <button ref={startRef} className="primary-button bet-start" type="button" onClick={onStart}>
-          Start · {selectedTier.wpm} wpm
+          Start <b>{selectedTier.wpm}</b> wpm
         </button>
         <button className="quiet-button" type="button" onClick={onReroll}>Reroll</button>
       </footer>
@@ -513,6 +570,9 @@ function Countdown({ duration, identity }: { duration: number; identity: string 
         <circle className="countdown-limit" cx="22" cy="22" r="17" pathLength="100" />
         <circle className="countdown-meter" cx="22" cy="22" r="17" pathLength="100" />
       </svg>
+      {/* The ring lives in the desktop gutter, which a phone does not have, so
+          narrow screens drain the boundary bar under the line instead. */}
+      <i className="countdown-bar" aria-hidden="true" />
     </span>
   );
 }
@@ -611,9 +671,8 @@ function Reader({
         let delta = readingScrollDelta({
           direction,
           lineTop: line.top,
-          lineBottom: line.bottom,
+          readableBottom: visibleEndElement.current?.getBoundingClientRect().bottom ?? line.bottom,
           viewportHeight,
-          mobile,
           topInset,
           bottomInset,
         });
@@ -725,7 +784,7 @@ function Reader({
       <aside className="reader-utility">
         <Wordmark onClick={onAbandon} />
         <div className="reader-source">
-          <p className="measurement-label">Reading</p>
+          <p className="plate">Reading</p>
           <h1>
             {article.sourceUrl ? (
               <a href={article.sourceUrl} target="_blank" rel="noreferrer">{article.title}</a>
@@ -733,24 +792,22 @@ function Reader({
           </h1>
         </div>
         <div className="committed-speed">
-          <span className="measurement-label">Locked</span>
+          <span className="plate">Locked</span>
           <strong>{committedWpm}</strong><small>wpm</small>
-          <em>{tier.name} · ×{speedMultiplier(committedWpm).toFixed(1)}</em>
+          <em><Lamp lit className="tier-lamp" />{tier.name} ×{speedMultiplier(committedWpm).toFixed(1)}</em>
         </div>
         <div className="reader-progress">
-          <div className="reader-progress-track" aria-hidden="true">
-            <i style={{ '--read-fraction': `${progress}%` } as CSSProperties} />
-          </div>
-          <p><b>{progress}%</b> · {formatClock(estimatedSeconds(wordsLeft, committedWpm))} left</p>
+          <EnergyBar fraction={progress / 100} />
+          <p><b>{progress}%</b><span>{formatClock(estimatedSeconds(wordsLeft, committedWpm))} left</span></p>
         </div>
         <div className="desktop-reader-controls">
-          <ReaderControl label="Previous line" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0} />
-          <ReaderControl label={atEnd ? 'Finish round' : 'Next line'} keyLabel="↓" direction="down" onClick={nextAction} />
+          <ReaderControl label="Previous" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0} />
           <button className="reader-control pause-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
             <PauseIcon paused={userPaused} />
             <span>{userPaused ? 'Resume' : 'Pause'}</span>
             <kbd>Space</kbd>
           </button>
+          <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="↓" direction="down" onClick={nextAction} />
         </div>
         <div className="reader-utility-footer">
           <button className="quiet-button" type="button" onClick={onAbandon}>Quit</button>
@@ -761,8 +818,9 @@ function Reader({
       <main className="reader-main" aria-label={`Reading ${article.title}`}>
         <div className="mobile-reader-status">
           <button type="button" onClick={onAbandon} aria-label="Abandon round">×</button>
-          <span><b>{committedWpm}</b> wpm</span>
-          <span><b>{progress}</b>%</span>
+          <span className="mobile-status-speed"><b>{committedWpm}</b><small>wpm</small></span>
+          <EnergyBar fraction={progress / 100} className="mobile-status-energy" />
+          <span className="mobile-status-clock">{formatClock(estimatedSeconds(wordsLeft, committedWpm))}</span>
         </div>
         <div className="reader-stage" ref={readerStage}>
           <div className="reading-curtain" style={{ height: curtainHeight }} aria-hidden="true">
@@ -820,11 +878,11 @@ function Scoreboard({ breakdown, wpm, correct, questions }: {
   questions: number;
 }) {
   const total = useCountUp(breakdown.total);
+  const verdict = breakdown.passed ? (breakdown.cleanSweep ? 'Clean sweep' : 'Passed') : 'Failed';
   return (
     <div className={`scoreboard${breakdown.passed ? ' passed' : ' failed'}`}>
-      <p className="section-label">
-        {breakdown.passed ? (breakdown.cleanSweep ? 'Clean sweep' : 'Round passed') : 'Round failed'}
-      </p>
+      <p className="verdict" data-text={verdict}>{verdict}</p>
+      <Reel value={total} className="score-reel" />
       <dl className="score-tally">
         <div>
           <dt>{correct} correct × {wpm} wpm</dt>
@@ -832,23 +890,19 @@ function Scoreboard({ breakdown, wpm, correct, questions }: {
         </div>
         {breakdown.cleanSweep && (
           <div className="score-bonus">
-            <dt>Clean sweep <em>×1.5</em></dt>
+            <dt><Lamp lit />Clean sweep <em>×1.5</em></dt>
             <dd>+{breakdown.cleanSweepBonus.toLocaleString()}</dd>
           </div>
         )}
         {breakdown.streak > 0 && (
           <div className="score-bonus">
-            <dt>Streak {breakdown.streak} <em>×{breakdown.streakMultiplier.toFixed(1)}</em></dt>
+            <dt><Lamp lit />Streak {breakdown.streak} <em>×{breakdown.streakMultiplier.toFixed(1)}</em></dt>
             <dd>+{breakdown.streakBonus.toLocaleString()}</dd>
           </div>
         )}
-        <div className="score-total">
-          <dt>Round score</dt>
-          <dd>{total.toLocaleString()}</dd>
-        </div>
       </dl>
       {!breakdown.passed && (
-        <p className="score-note">Under three of {questions}. Streak resets.</p>
+        <p className="score-note">Under 3 of {questions}</p>
       )}
     </div>
   );
@@ -912,10 +966,9 @@ function RoundView({
   if (status === 'loading') {
     return (
       <main className="workspace round-workspace round-pending quiz-kickoff" aria-live="polite">
-        <p className="section-label">Round complete</p>
-        <h1>Quiz time!</h1>
-        <p>Loading four questions…</p>
-        <div className="quiz-loading-lines" aria-hidden="true"><i /><i /><i /><i /></div>
+        <p className="plate">Round complete</p>
+        <h1 className="marquee" data-text="Recall">Recall</h1>
+        <div className="quiz-loading-lines" aria-label="Loading four questions"><i /><i /><i /><i /></div>
       </main>
     );
   }
@@ -923,13 +976,13 @@ function RoundView({
   if (status === 'error' || !quiz) {
     return (
       <main className="workspace round-workspace round-pending">
-        <p className="section-label">Round complete</p>
-        <h1>This round could not be scored.</h1>
-        <p className="quiz-error" role="alert">{error || 'The recall check could not be created.'}</p>
+        <p className="plate">Round complete</p>
+        <h1 className="marquee" data-text="No score">No score</h1>
+        <p className="quiz-error" role="alert">{error || 'The recall check failed.'}</p>
         <div className="quiz-actions">
           {status === 'error' && <button className="primary-button" type="button" onClick={onRetry}>Try again</button>}
-          <button className="quiet-button" type="button" onClick={onChangeSpeed}>Roll another article</button>
-          <button className="quiet-button" type="button" onClick={onProgress}>See progress</button>
+          <button className="quiet-button" type="button" onClick={onChangeSpeed}>Roll again</button>
+          <button className="quiet-button" type="button" onClick={onProgress}>Record</button>
         </div>
       </main>
     );
@@ -971,13 +1024,15 @@ function RoundView({
     <main className="workspace round-workspace">
       {submitted && <header className="round-header">
         <div>
-          <p className="section-label">
+          <p className="plate">
             Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm
           </p>
-          <h1>Here’s what stayed.</h1>
+          <h1 className="marquee" data-text={`${round.correct} of ${round.questions}`}>
+            {round.correct} of {round.questions}
+          </h1>
           <p className="round-summary">
             {round.passed ? `Streak ${round.streakBefore + 1}` : 'Streak reset'}
-            {newBest && <em> · New best</em>}
+            {newBest && <em>New best</em>}
           </p>
         </div>
         {breakdown && (
@@ -995,18 +1050,18 @@ function RoundView({
           <RankBar standing={standing} />
           <div className="round-next">
             <button className="primary-button" type="button" onClick={onPlayAgain}>
-              Play again · {round.committedWpm} wpm
+              Again <b>{round.committedWpm}</b> wpm
             </button>
             <button className="quiet-button" type="button" onClick={onChangeSpeed}>Change speed</button>
-            <button className="quiet-button" type="button" onClick={onProgress}>See progress</button>
+            <button className="quiet-button" type="button" onClick={onProgress}>Record</button>
           </div>
         </section>
       )}
 
       <form className={`quiz-form${submitted ? '' : ' quiz-live'}`} onSubmit={(event) => { event.preventDefault(); submit(); }}>
         {!submitted && (
-          <p className="quiz-round-meta">
-            <b>Quiz time!</b> · Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm
+          <p className="quiz-round-meta plate">
+            <b>Recall</b> Round {roundNumber} · {tierForWpm(round.committedWpm).name} · {round.committedWpm} wpm
           </p>
         )}
         <div className="quiz-progress" aria-label={`Question ${questionIndex + 1} of ${quiz.questions.length}`}>
@@ -1020,7 +1075,7 @@ function RoundView({
         </div>
         <div className={`quiz-question-stage ${questionDirection}`} key={`${submitted ? 'review' : 'quiz'}-${questionIndex}`}>
           <fieldset ref={questionRef} className="quiz-question" disabled={submitted || answerLocked}>
-            <legend><span>{String(questionIndex + 1).padStart(2, '0')}</span>{question.prompt}</legend>
+            <legend>{question.prompt}</legend>
             <div className="quiz-choices">
               {question.choices.map((choice, choiceIndex) => {
                 const selected = answers[questionIndex] === choiceIndex;
@@ -1035,9 +1090,10 @@ function RoundView({
                       checked={selected}
                       onChange={() => chooseAnswer(choiceIndex)}
                     />
+                    <b className="pad-key" aria-hidden="true">{'ABCD'[choiceIndex]}</b>
                     <span>{choice}</span>
-                    {correct && <b>Correct answer</b>}
-                    {incorrect && <b>Your answer</b>}
+                    {correct && <em>Correct</em>}
+                    {incorrect && <em>Yours</em>}
                   </label>
                 );
               })}
@@ -1091,42 +1147,42 @@ function Progress({
     <main className="workspace progress-workspace">
       <header className="progress-header">
         <div>
-          <p className="eyebrow">Progress</p>
-          <h1>{ordered.length === 0 ? 'Nothing played yet.' : 'Your speed record.'}</h1>
+          <p className="plate">Progress</p>
+          <h1 className="marquee" data-text="Record">Record</h1>
         </div>
         {ordered.length > 0 && (
-          <button className="primary-button" type="button" onClick={onRoll}>Roll next article</button>
+          <button className="primary-button" type="button" onClick={onRoll}>Roll</button>
         )}
       </header>
 
       {ordered.length === 0 ? (
         <section className="progress-empty">
-          <span className="empty-boundary" aria-hidden="true"><i /><i /><i /></span>
-          <h2>Your first round is one roll away.</h2>
-          <p>Play a couple of rounds and this shows where you break.</p>
+          <span className="empty-boundary" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span>
+          <h2>No rounds yet</h2>
           <button className="primary-button" type="button" onClick={onRoll}>Roll an article</button>
         </section>
       ) : (
         <>
           <section className="progress-standing" aria-label="Standing">
+            <p className="plate">High score</p>
             <RankBar standing={standing} />
             <div className="standing-grid wide">
               <div><span>Rounds</span><strong>{standing.rounds}</strong></div>
               <div><span>Streak</span><strong>{standing.streak}</strong></div>
               <div><span>Best streak</span><strong>{best}</strong></div>
               <div>
-                <span>Best clean speed</span>
-                <strong>{standing.bestClean ?? 'none yet'}</strong>
-                {standing.bestClean !== null && <small>wpm</small>}
+                <span>Best clean</span>
+                <strong>{standing.bestClean ?? 0}</strong>
+                <small>wpm</small>
               </div>
             </div>
           </section>
 
           <section className="curve" aria-labelledby="curve-title">
             <header>
-              <h2 id="curve-title">Comprehension curve</h2>
-              <p>
-                {ceiling ? `Reliable to ${ceiling.tier.name}` : 'Two rounds at a tier to count'}
+              <h2 id="curve-title" className="plate">Comprehension</h2>
+              <p className="plate">
+                {ceiling ? `Holding ${ceiling.tier.name}` : '2 rounds a tier to count'}
               </p>
             </header>
             <div className="curve-table">
@@ -1138,12 +1194,13 @@ function Progress({
                     key={record.tier.id}
                     style={{ '--tier-color': tierColorVar(record.tier) } as CSSProperties}
                   >
+                    <Lamp lit={record.rounds > 0} className="tier-lamp" />
                     <span className="curve-tier">{record.tier.name}</span>
                     <span className="curve-wpm">{record.tier.wpm}</span>
                     <div className="curve-bar" aria-hidden="true">
                       <i style={{ '--curve-width': `${record.accuracy ?? 0}%` } as CSSProperties} />
                     </div>
-                    <strong>{record.accuracy === null ? 'n/a' : `${record.accuracy}%`}</strong>
+                    <strong>{record.accuracy === null ? '—' : `${record.accuracy}%`}</strong>
                     <small>
                       {record.rounds === 0
                         ? 'new'
@@ -1156,7 +1213,7 @@ function Progress({
           </section>
 
           <section className="round-log" aria-labelledby="round-log-title">
-            <h2 id="round-log-title">Round log</h2>
+            <h2 id="round-log-title" className="plate">Round log</h2>
             <div className="round-list">
               {ordered.map((round, index) => (
                 <article className={`round-row${round.passed ? '' : ' failed'}`} key={round.id}>
@@ -1175,7 +1232,7 @@ function Progress({
                       {round.correct}/{round.questions}
                     </span>
                   </div>
-                  <div className="round-score">{round.score.toLocaleString()}</div>
+                  <Reel value={round.score} className="round-score" />
                   <div className="round-actions">
                     {round.quiz && (
                       <button className="quiet-button" type="button" onClick={() => onReview(round)}>Review</button>
@@ -1345,7 +1402,7 @@ export default function App() {
         break;
       }
       if (!nextArticle) {
-        throw new Error('Every article that came up was too thin to play. Roll again.');
+        throw new Error('Every candidate was too thin to play. Roll again.');
       }
       if (generation !== rollGeneration.current) return;
       window.clearTimeout(timeout);
@@ -1361,8 +1418,8 @@ export default function App() {
     } catch (error) {
       if (generation !== rollGeneration.current) return;
       setRollError(timedOut
-        ? 'The roll took too long. Check your connection and roll again.'
-        : error instanceof Error ? error.message : 'The roll did not land. Try again.');
+        ? 'Roll timed out. Check your connection.'
+        : error instanceof Error ? error.message : 'The roll did not land.');
       setView('home');
     } finally {
       window.clearTimeout(timeout);
@@ -1418,7 +1475,7 @@ export default function App() {
     setQuizAvailable(available);
     if (!available || !article) {
       setQuizStatus('error');
-      setQuizError('Recall checks are unavailable right now, so this round cannot be scored.');
+      setQuizError('Scoring is offline. This round cannot be scored.');
       setView('round');
       return;
     }
@@ -1431,7 +1488,7 @@ export default function App() {
       setQuizStatus('idle');
     } catch (error) {
       setQuizStatus('error');
-      setQuizError(error instanceof Error ? error.message : 'The recall check could not be created. Try again.');
+      setQuizError(error instanceof Error ? error.message : 'The recall check failed.');
     }
   };
 
@@ -1445,7 +1502,7 @@ export default function App() {
     if (!source && round.articleId) source = (await getStoredArticle(round.articleId))?.article ?? null;
     if (!source) {
       setQuizStatus('error');
-      setQuizError('That article is no longer stored in this browser, so the round cannot be scored.');
+      setQuizError('That article is no longer in this browser.');
       return;
     }
     setQuizStatus('loading');
@@ -1456,7 +1513,7 @@ export default function App() {
       setQuizStatus('idle');
     } catch (error) {
       setQuizStatus('error');
-      setQuizError(error instanceof Error ? error.message : 'The recall check could not be created. Try again.');
+      setQuizError(error instanceof Error ? error.message : 'The recall check failed.');
     }
   };
 
@@ -1548,8 +1605,8 @@ export default function App() {
         <RollTransition title={rollingTitle} />
       ) : view === 'loading' ? (
         <main className="workspace restore-workspace" aria-live="polite">
-          <p className="section-label">Saved locally</p>
-          <h1>Restoring your article…</h1>
+          <p className="plate">Saved locally</p>
+          <h1 className="marquee" data-text="Loading">Loading</h1>
         </main>
       ) : (
         <Home
