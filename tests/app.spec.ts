@@ -253,6 +253,42 @@ test('manual reader scrolling remains under the player’s control', async ({ pa
   expect(await page.evaluate(() => window.scrollY)).toBe(manuallyScrolledTo);
 });
 
+test('a screenful hands off behind a shutter and preserves the last line as an eye anchor', async ({ page }, testInfo) => {
+  await page.goto('/?demo=reader');
+  await page.keyboard.press('Space');
+  const shell = page.locator('.reader-shell');
+  let observedHandoff = false;
+  await page.evaluate(() => {
+    (window as typeof window & { pageHandoffs?: number }).pageHandoffs = 0;
+    const shellElement = document.querySelector('.reader-shell')!;
+    new MutationObserver(() => {
+      if (shellElement.classList.contains('page-turning')) {
+        (window as typeof window & { pageHandoffs?: number }).pageHandoffs! += 1;
+      }
+    }).observe(shellElement, { attributes: true, attributeFilter: ['class'] });
+  });
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const previousIndex = Number(await page.locator('.reading-line.active').getAttribute('data-line-index'));
+    if (previousIndex >= await page.locator('.reading-line').count() - 1) break;
+    const previousText = await page.locator('.reading-line.active').innerText();
+    const handoffsBefore = await page.evaluate(() => (window as typeof window & { pageHandoffs?: number }).pageHandoffs!);
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('.reading-line.active')).toHaveAttribute('data-line-index', String(previousIndex + 1));
+    await page.waitForTimeout(30);
+    if (await page.evaluate((before) => (window as typeof window & { pageHandoffs?: number }).pageHandoffs! > before, handoffsBefore)) {
+      observedHandoff = true;
+      await expect(shell).not.toHaveClass(/page-turning/, { timeout: 1_000 });
+      await expect(page.locator('.page-handoff-anchor')).toContainText(previousText.trim());
+      expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+      await page.screenshot({ path: testInfo.outputPath('page-handoff-anchor.png') });
+      break;
+    }
+  }
+
+  expect(observedHandoff).toBe(true);
+});
+
 test('the reading window moves only after a line is finished', async ({ page }, testInfo) => {
   await page.goto('/?demo=reader');
   await expect(page.locator('.reading-line.active')).toBeVisible();

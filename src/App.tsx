@@ -57,6 +57,7 @@ import { SAMPLE_ARTICLE, countWords, fallbackWrap, roundExcerpt, wrapParagraphs 
 import { loadPreferredTier, loadRounds, saveRound, savePreferredTier } from './lib/storage';
 import { readingScrollDelta } from './lib/viewport';
 import { linePaceSeconds, windowRange, windowTravelDuration } from './lib/readerMotion';
+import { usePageHandoff } from './hooks/usePageHandoff';
 import type { ArticleContent, GameRound, ReadingLine } from './types';
 
 type View = 'home' | 'rolling' | 'bet' | 'reader' | 'round' | 'progress' | 'loading';
@@ -628,6 +629,7 @@ function Reader({
   const [futureCurtainTop, setFutureCurtainTop] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
   const [travelTarget, setTravelTarget] = useState<number | null>(null);
+  const { anchor: handoffAnchor, start: startPageHandoff, turning: pageTurning } = usePageHandoff();
   const [documentPaused, setDocumentPaused] = useState(() => document.hidden);
   const [userPaused, setUserPaused] = useState(false);
   const activeElement = useRef<HTMLButtonElement>(null);
@@ -692,11 +694,20 @@ function Reader({
         if (previous === null && (line.top < topInset || line.bottom > viewportHeight - bottomInset)) {
           delta = line.top - (mobile ? topInset + 24 : viewportHeight * 0.38);
         }
-        if (Math.abs(delta) > 1) window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
+        if (Math.abs(delta) > 1) {
+          if (prefersReducedMotion()) {
+            window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
+            return;
+          }
+
+          const anchorIndex = direction > 0 ? Math.max(0, activeIndex - 1) : activeIndex;
+          const anchor = lineElements.current[anchorIndex];
+          startPageHandoff({ anchor, fallbackDelta: delta, topInset });
+        }
       });
     }
     return () => cancelAnimationFrame(frame);
-  }, [activeIndex, lines, visibleEndIndex]);
+  }, [activeIndex, lines, startPageHandoff, visibleEndIndex]);
 
   const selectLine = useCallback((startWord: number) => {
     setActiveWord(startWord);
@@ -704,7 +715,7 @@ function Reader({
   }, []);
 
   const travelToLine = useCallback((requestedIndex: number, source: 'auto' | 'manual') => {
-    if (travelTarget !== null || lines.length === 0) return;
+    if (travelTarget !== null || pageTurning || lines.length === 0) return;
     const nextIndex = clamp(requestedIndex, 0, lines.length - 1);
     if (nextIndex === activeIndex) {
       if (source === 'manual') setTimerRevision((value) => value + 1);
@@ -772,7 +783,7 @@ function Reader({
       apertureAnimations.current = animations;
       void Promise.all(animations.map((animation) => animation.finished)).then(settle).catch(() => undefined);
     });
-  }, [activeIndex, lines, selectLine, travelTarget]);
+  }, [activeIndex, lines, pageTurning, selectLine, travelTarget]);
 
   const moveLine = useCallback((delta: number) => {
     travelToLine(activeIndex + delta, 'manual');
@@ -808,7 +819,7 @@ function Reader({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  const clockStopped = documentPaused || userPaused;
+  const clockStopped = documentPaused || userPaused || pageTurning;
 
   // One accounting for every reason the clock stops, so a hidden tab and a
   // deliberate pause cannot double-count or cancel each other out.
@@ -868,7 +879,7 @@ function Reader({
 
   return (
     <div
-      className={`reader-shell${clockStopped ? ' timer-paused' : ''}${travelTarget !== null ? ' window-traveling' : ''}`}
+      className={`reader-shell${clockStopped ? ' timer-paused' : ''}${travelTarget !== null ? ' window-traveling' : ''}${pageTurning ? ' page-turning' : ''}`}
       style={{ '--tier-color': tierColorVar(tier) } as CSSProperties}
     >
       <aside className="reader-utility">
@@ -891,13 +902,13 @@ function Reader({
           <p><b>{progress}%</b><span>{formatClock(estimatedSeconds(wordsLeft, committedWpm))} left</span></p>
         </div>
         <div className="desktop-reader-controls">
-          <ReaderControl label="Previous" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0 || travelTarget !== null} />
+          <ReaderControl label="Previous" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0 || travelTarget !== null || pageTurning} />
           <button className="reader-control pause-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
             <PauseIcon paused={userPaused} />
             <span>{userPaused ? 'Resume' : 'Pause'}</span>
             <kbd>Space</kbd>
           </button>
-          <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="↓" direction="down" onClick={nextAction} disabled={travelTarget !== null} />
+          <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="↓" direction="down" onClick={nextAction} disabled={travelTarget !== null || pageTurning} />
         </div>
         <div className="reader-utility-footer">
           <button className="quiet-button" type="button" onClick={onAbandon}>Quit</button>
@@ -906,6 +917,16 @@ function Reader({
       </aside>
 
       <main className="reader-main" aria-label={`Reading ${article.title}`}>
+        <div className="page-handoff-shutter" aria-hidden="true"><i /></div>
+        {handoffAnchor && !pageTurning && (
+          <p
+            className="page-handoff-anchor"
+            style={{ left: handoffAnchor.left, top: handoffAnchor.top, width: handoffAnchor.width }}
+            aria-hidden="true"
+          >
+            {handoffAnchor.text}
+          </p>
+        )}
         <div className="mobile-reader-status">
           <button type="button" onClick={onAbandon} aria-label="Abandon round">×</button>
           <span className="mobile-status-speed"><b>{committedWpm}</b><small>wpm</small></span>
@@ -974,12 +995,12 @@ function Reader({
       </main>
 
       <div className="mobile-reader-controls" aria-label="Reading controls">
-        <ReaderControl label="Previous" keyLabel="" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0 || travelTarget !== null} />
+        <ReaderControl label="Previous" keyLabel="" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0 || travelTarget !== null || pageTurning} />
         <button className="reader-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
           <PauseIcon paused={userPaused} />
           <span>{userPaused ? 'Resume' : 'Pause'}</span>
         </button>
-        <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="" direction="down" onClick={nextAction} disabled={travelTarget !== null} />
+        <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="" direction="down" onClick={nextAction} disabled={travelTarget !== null || pageTurning} />
       </div>
     </div>
   );
