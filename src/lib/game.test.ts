@@ -93,7 +93,7 @@ describe('round scoring', () => {
 describe('ranks', () => {
   it('starts at the first rank and reports progress toward the next', () => {
     const progress = rankFor(0);
-    expect(progress.current.name).toBe(RANKS[0].name);
+    expect(progress.current.name).toBe('Rookie');
     expect(progress.next?.name).toBe(RANKS[1].name);
     expect(progress.fraction).toBe(0);
   });

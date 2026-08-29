@@ -341,18 +341,18 @@ function Home({
 
       {returning ? (
         <section className="home-standing" aria-label="Your standing">
-          <p className="plate">High score</p>
+          <p className="plate">Total score</p>
           <RankBar standing={standing} />
           <div className="standing-grid">
             <div><span>Streak</span><strong>{standing.streak}</strong></div>
             <div>
-              <span>Best clean</span>
+              <span>Fastest 4/4</span>
               <strong>{standing.bestClean ?? 0}</strong><small>wpm</small>
             </div>
             <div><span>Rounds</span><strong>{standing.rounds}</strong></div>
           </div>
           {ceiling && (
-            <p className="standing-note plate">Holding <b>{ceiling.tier.name}</b></p>
+            <p className="standing-note plate">Proven pace <b>{ceiling.tier.name}</b></p>
           )}
         </section>
       ) : (
@@ -1285,14 +1285,14 @@ function Progress({
       ) : (
         <>
           <section className="progress-standing" aria-label="Standing">
-            <p className="plate">High score</p>
+            <p className="plate">Total score</p>
             <RankBar standing={standing} />
             <div className="standing-grid wide">
               <div><span>Rounds</span><strong>{standing.rounds}</strong></div>
               <div><span>Streak</span><strong>{standing.streak}</strong></div>
               <div><span>Best streak</span><strong>{best}</strong></div>
               <div>
-                <span>Best clean</span>
+                <span>Fastest 4/4</span>
                 <strong>{standing.bestClean ?? 0}</strong>
                 <small>wpm</small>
               </div>
@@ -1303,7 +1303,7 @@ function Progress({
             <header>
               <h2 id="curve-title" className="plate">Comprehension</h2>
               <p className="plate">
-                {ceiling ? `Holding ${ceiling.tier.name}` : '2 rounds a tier to count'}
+                {ceiling ? `Proven pace: ${ceiling.tier.name}` : 'Complete 2 rounds to prove a pace'}
               </p>
             </header>
             <div className="curve-table">

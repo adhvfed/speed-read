@@ -111,7 +111,7 @@ export interface Rank {
 }
 
 export const RANKS: readonly Rank[] = [
-  { name: 'Browser', points: 0 },
+  { name: 'Rookie', points: 0 },
   { name: 'Skimmer', points: 2_500 },
   { name: 'Scanner', points: 7_500 },
   { name: 'Reader', points: 15_000 },
