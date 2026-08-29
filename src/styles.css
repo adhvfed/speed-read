@@ -78,6 +78,8 @@
 html {
   min-width: 320px;
   background: var(--cab);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -1521,6 +1523,35 @@ button:disabled {
   color: var(--screen-ink);
 }
 
+/* Safari and the visible reader now share one layout engine. The probe stays
+   out of flow and out of paint, but its words still participate in a single
+   native line-layout pass that can be sampled after fonts settle. */
+.reader-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  margin: 0;
+  visibility: hidden;
+  contain: layout style paint;
+  pointer-events: none;
+  user-select: none;
+}
+
+.reader-measure-sample {
+  position: absolute;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.reader-measure-paragraph {
+  display: block;
+}
+
+.reader-measure-word {
+  white-space: nowrap;
+  hyphens: none;
+}
+
 /* The curtain is the machine's own shutter, painted in cabinet colour, so a
    covered line reads as deliberately closed rather than as missing. */
 .reading-curtain,
@@ -2629,7 +2660,8 @@ button:disabled {
     box-shadow: inset 0 0 70px -26px rgb(27 18 6 / 0.4);
   }
 
-  .reader-copy {
+  .reader-copy,
+  .reader-measure {
     font-size: 1.0625rem;
     line-height: 1.58;
   }

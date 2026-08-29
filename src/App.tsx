@@ -20,6 +20,7 @@
  * absent until the bet is placed, then revealed three lines at a time.
  */
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -27,7 +28,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { getStoredArticle, storeArticle } from './lib/articleStore';
 import { extractArticle, generateQuiz, isQuizAvailable, randomWikipediaArticles } from './lib/api';
 import { randomizeQuizChoices, scoreQuiz } from './lib/quiz';
@@ -53,7 +54,7 @@ import {
   totalPoints,
 } from './lib/game';
 import type { ScoreBreakdown, SpeedTier } from './lib/game';
-import { SAMPLE_ARTICLE, countWords, fallbackWrap, roundExcerpt, wrapParagraphs } from './lib/text';
+import { SAMPLE_ARTICLE, countWords, normalizeWhitespace, roundExcerpt } from './lib/text';
 import { loadPreferredTier, loadRounds, saveRound, savePreferredTier } from './lib/storage';
 import { readingScrollDelta } from './lib/viewport';
 import { linePaceSeconds, windowRange, windowTravelDuration } from './lib/readerMotion';
@@ -505,47 +506,98 @@ function findActiveLine(lines: ReadingLine[], activeWord: number): number {
  */
 const TARGET_CHARACTERS = 68;
 
-function readingMeasure(sample: string, available: number, measure: (text: string) => number): number {
+function readingMeasure(sample: string, sampleWidth: number, available: number): number {
   if (!sample) return available;
-  const averageCharacter = measure(sample) / sample.length;
+  const averageCharacter = sampleWidth / sample.length;
   if (!Number.isFinite(averageCharacter) || averageCharacter <= 0) return available;
   return Math.min(available, Math.round(TARGET_CHARACTERS * averageCharacter));
 }
 
+const LINE_FIT_GUARD_PX = 1;
+
+function linesFromMeasuredWords(element: HTMLElement, paragraphs: string[]): ReadingLine[] {
+  const lines: ReadingLine[] = [];
+  let globalWord = 0;
+  const measuredParagraphs = element.querySelectorAll<HTMLElement>('[data-measure-paragraph]');
+
+  paragraphs.forEach((paragraph, paragraphIndex) => {
+    const words = normalizeWhitespace(paragraph).split(/\s+/).filter(Boolean);
+    const wordElements = measuredParagraphs[paragraphIndex]
+      ?.querySelectorAll<HTMLElement>('[data-measure-word]');
+    if (!wordElements || wordElements.length !== words.length) {
+      globalWord += words.length;
+      return;
+    }
+
+    let lineStart = 0;
+    let previousTop: number | null = null;
+    const pushLine = (end: number) => {
+      if (end <= lineStart) return;
+      lines.push({
+        id: `${paragraphIndex}-${globalWord + lineStart}`,
+        text: words.slice(lineStart, end).join(' '),
+        startWord: globalWord + lineStart,
+        endWord: globalWord + end,
+        paragraphStart: lineStart === 0,
+      });
+      lineStart = end;
+    };
+
+    wordElements.forEach((word, index) => {
+      const top = word.getBoundingClientRect().top;
+      if (previousTop !== null && Math.abs(top - previousTop) > 0.5) pushLine(index);
+      previousTop = top;
+    });
+    pushLine(words.length);
+    globalWord += words.length;
+  });
+
+  return lines;
+}
+
 function useWrappedLines(paragraphs: string[]) {
-  const copyRef = useRef<HTMLDivElement>(null);
-  const [lines, setLines] = useState<ReadingLine[]>(() => fallbackWrap(paragraphs));
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [layout, setLayout] = useState<{ lines: ReadingLine[]; width: number; ready: boolean }>({
+    lines: [],
+    width: 0,
+    ready: false,
+  });
 
   useLayoutEffect(() => {
-    const element = copyRef.current;
+    const element = measureRef.current;
     const stage = element?.parentElement;
     if (!element || !stage) return;
     let frame = 0;
+    let fontsReady = false;
+    let cancelled = false;
     let lastAvailable = -1;
 
     const update = (force = false) => {
+      if (!fontsReady) return;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const styles = getComputedStyle(element);
+        if (cancelled) return;
         const stageStyles = getComputedStyle(stage);
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        if (!context) return;
-        context.font = `${styles.fontWeight} ${styles.fontSize} ${styles.fontFamily}`;
         const available = stage.clientWidth
           - Number.parseFloat(stageStyles.paddingLeft)
-          - Number.parseFloat(stageStyles.paddingRight)
-          - Number.parseFloat(styles.marginLeft)
-          - Number.parseFloat(styles.marginRight);
+          - Number.parseFloat(stageStyles.paddingRight);
         if (!force && available === lastAvailable) return;
         lastAvailable = available;
         if (available <= 0) return;
 
-        const sample = paragraphs.join(' ').slice(0, 600);
-        const width = readingMeasure(sample, available, (value) => context.measureText(value).width);
-        element.style.width = `${width}px`;
-        const next = wrapParagraphs(paragraphs, width, (value) => context.measureText(value).width);
-        if (next.length > 0) setLines(next);
+        element.style.width = `${available}px`;
+        const sample = element.querySelector<HTMLElement>('[data-measure-sample]');
+        const sampleText = sample?.textContent ?? '';
+        const sampleWidth = sample?.getBoundingClientRect().width ?? 0;
+        const width = readingMeasure(sampleText, sampleWidth, available);
+
+        // Measure against a fractionally narrower column so subpixel rounding
+        // cannot turn a browser-approved line into two rows when it is copied
+        // into the visible reader.
+        element.style.width = `${Math.max(1, width - LINE_FIT_GUARD_PX)}px`;
+        const next = linesFromMeasuredWords(element, paragraphs);
+        if (next.length === 0) return;
+        setLayout({ lines: next, width, ready: true });
       });
     };
 
@@ -553,17 +605,49 @@ function useWrappedLines(paragraphs: string[]) {
     // is the output of this measurement and observing it would loop.
     const observer = new ResizeObserver(() => update());
     observer.observe(stage);
-    void document.fonts.ready.then(() => update(true));
-    update(true);
+    void document.fonts.ready.then(() => {
+      if (cancelled) return;
+      fontsReady = true;
+      update(true);
+    });
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
   }, [paragraphs]);
 
-  return { copyRef, lines };
+  return { measureRef, ...layout };
 }
+
+const ReaderMeasure = memo(function ReaderMeasure({
+  paragraphs,
+  measureRef,
+}: {
+  paragraphs: string[];
+  measureRef: RefObject<HTMLDivElement | null>;
+}) {
+  const sample = paragraphs.join(' ').slice(0, 600);
+  return (
+    <div className="reader-copy reader-measure" ref={measureRef} aria-hidden="true">
+      <span className="reader-measure-sample" data-measure-sample>{sample}</span>
+      {paragraphs.map((paragraph, paragraphIndex) => {
+        const words = normalizeWhitespace(paragraph).split(/\s+/).filter(Boolean);
+        return (
+          <span className="reader-measure-paragraph" data-measure-paragraph key={paragraphIndex}>
+            {words.map((word, wordIndex) => (
+              <span key={wordIndex}>
+                {wordIndex > 0 ? ' ' : null}
+                <span className="reader-measure-word" data-measure-word>{word}</span>
+              </span>
+            ))}
+          </span>
+        );
+      })}
+    </div>
+  );
+});
 
 function Countdown({ duration, identity }: { duration: number; identity: string }) {
   const style = { '--line-duration': `${duration}s` } as CSSProperties;
@@ -622,9 +706,9 @@ function Reader({
   onAbandon: () => void;
   onFinish: (round: PendingRound) => void | Promise<void>;
 }) {
-  const { copyRef, lines } = useWrappedLines(article.paragraphs);
+  const { measureRef, lines, width: copyWidth, ready: layoutReady } = useWrappedLines(article.paragraphs);
   const [activeWord, setActiveWord] = useState(0);
-  const [startedAt] = useState(() => new Date());
+  const startedAt = useRef<Date | null>(null);
   const [curtainHeight, setCurtainHeight] = useState(0);
   const [futureCurtainTop, setFutureCurtainTop] = useState(0);
   const [timerRevision, setTimerRevision] = useState(0);
@@ -654,6 +738,10 @@ function Reader({
   const lineDuration = activeLine ? linePaceSeconds(activeLine.text, committedWpm) : 2;
   const progress = lines.length > 1 ? Math.round((activeIndex / (lines.length - 1)) * 100) : 0;
   const wordsLeft = Math.max(0, totalWords - (activeLine?.startWord ?? 0));
+
+  useLayoutEffect(() => {
+    if (layoutReady && startedAt.current === null) startedAt.current = new Date();
+  }, [layoutReady]);
 
   useLayoutEffect(() => {
     let frame = 0;
@@ -799,19 +887,20 @@ function Reader({
     finished.current = true;
     const completedAt = new Date();
     const pendingPause = pausedAt.current ? completedAt.getTime() - pausedAt.current : 0;
-    const milliseconds = completedAt.getTime() - startedAt.getTime() - pausedDuration.current - pendingPause;
+    const roundStartedAt = startedAt.current ?? completedAt;
+    const milliseconds = completedAt.getTime() - roundStartedAt.getTime() - pausedDuration.current - pendingPause;
     void onFinish({
       id: makeId(),
       title: article.title,
       sourceUrl: article.sourceUrl,
       wordCount: totalWords,
       committedWpm,
-      startedAt: startedAt.toISOString(),
+      startedAt: roundStartedAt.toISOString(),
       completedAt: completedAt.toISOString(),
       durationSeconds: Math.max(1, Math.round(milliseconds / 1000)),
       ...(storedLocally ? { articleId } : {}),
     });
-  }, [article.sourceUrl, article.title, articleId, committedWpm, onFinish, startedAt, storedLocally, totalWords]);
+  }, [article.sourceUrl, article.title, articleId, committedWpm, onFinish, storedLocally, totalWords]);
 
   useEffect(() => {
     const handleVisibility = () => setDocumentPaused(document.hidden);
@@ -819,11 +908,12 @@ function Reader({
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, []);
 
-  const clockStopped = documentPaused || userPaused || pageTurning;
+  const clockStopped = !layoutReady || documentPaused || userPaused || pageTurning;
 
   // One accounting for every reason the clock stops, so a hidden tab and a
   // deliberate pause cannot double-count or cancel each other out.
   useEffect(() => {
+    if (!layoutReady) return;
     if (clockStopped) {
       if (pausedAt.current === null) pausedAt.current = Date.now();
       apertureAnimations.current.forEach((animation) => animation.pause());
@@ -835,7 +925,7 @@ function Reader({
       setTimerRevision((value) => value + 1);
     }
     apertureAnimations.current.forEach((animation) => animation.play());
-  }, [clockStopped]);
+  }, [clockStopped, layoutReady]);
 
   const togglePause = useCallback(() => setUserPaused((value) => !value), []);
 
@@ -857,6 +947,7 @@ function Reader({
         onAbandon();
         return;
       }
+      if (!layoutReady) return;
       if (event.key === ' ') {
         event.preventDefault();
         togglePause();
@@ -872,7 +963,7 @@ function Reader({
     };
     window.addEventListener('keydown', handleKeys);
     return () => window.removeEventListener('keydown', handleKeys);
-  }, [activeIndex, finish, lines.length, moveLine, onAbandon, togglePause]);
+  }, [activeIndex, finish, layoutReady, lines.length, moveLine, onAbandon, togglePause]);
 
   const atEnd = activeIndex === lines.length - 1;
   const nextAction = atEnd ? finish : () => moveLine(1);
@@ -902,13 +993,13 @@ function Reader({
           <p><b>{progress}%</b><span>{formatClock(estimatedSeconds(wordsLeft, committedWpm))} left</span></p>
         </div>
         <div className="desktop-reader-controls">
-          <ReaderControl label="Previous" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0 || travelTarget !== null || pageTurning} />
-          <button className="reader-control pause-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
+          <ReaderControl label="Previous" keyLabel="↑" direction="up" onClick={() => moveLine(-1)} disabled={!layoutReady || activeIndex === 0 || travelTarget !== null || pageTurning} />
+          <button className="reader-control pause-control" type="button" onClick={togglePause} aria-pressed={userPaused} disabled={!layoutReady}>
             <PauseIcon paused={userPaused} />
             <span>{userPaused ? 'Resume' : 'Pause'}</span>
             <kbd>Space</kbd>
           </button>
-          <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="↓" direction="down" onClick={nextAction} disabled={travelTarget !== null || pageTurning} />
+          <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="↓" direction="down" onClick={nextAction} disabled={!layoutReady || travelTarget !== null || pageTurning} />
         </div>
         <div className="reader-utility-footer">
           <button className="quiet-button" type="button" onClick={onAbandon}>Quit</button>
@@ -935,6 +1026,7 @@ function Reader({
           <span className="mobile-status-clock">{formatClock(estimatedSeconds(wordsLeft, committedWpm))}</span>
         </div>
         <div className="reader-stage" ref={readerStage}>
+          <ReaderMeasure paragraphs={article.paragraphs} measureRef={measureRef} />
           <div
             className="reading-curtain"
             ref={pastCurtainElement}
@@ -959,7 +1051,7 @@ function Reader({
             style={{ transform: `translateY(${futureCurtainTop}px)` }}
             aria-hidden="true"
           />
-          <div className="reader-copy" ref={copyRef}>
+          <div className="reader-copy" style={{ width: copyWidth || undefined }}>
             {lines.map((line, index) => {
               const active = index === activeIndex;
               const visible = index >= range.accessibleStart && index <= range.accessibleEnd;
@@ -995,12 +1087,12 @@ function Reader({
       </main>
 
       <div className="mobile-reader-controls" aria-label="Reading controls">
-        <ReaderControl label="Previous" keyLabel="" direction="up" onClick={() => moveLine(-1)} disabled={activeIndex === 0 || travelTarget !== null || pageTurning} />
-        <button className="reader-control" type="button" onClick={togglePause} aria-pressed={userPaused}>
+        <ReaderControl label="Previous" keyLabel="" direction="up" onClick={() => moveLine(-1)} disabled={!layoutReady || activeIndex === 0 || travelTarget !== null || pageTurning} />
+        <button className="reader-control" type="button" onClick={togglePause} aria-pressed={userPaused} disabled={!layoutReady}>
           <PauseIcon paused={userPaused} />
           <span>{userPaused ? 'Resume' : 'Pause'}</span>
         </button>
-        <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="" direction="down" onClick={nextAction} disabled={travelTarget !== null || pageTurning} />
+        <ReaderControl label={atEnd ? 'Finish' : 'Next'} keyLabel="" direction="down" onClick={nextAction} disabled={!layoutReady || travelTarget !== null || pageTurning} />
       </div>
     </div>
   );

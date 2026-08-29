@@ -65,6 +65,16 @@ async function answerAll(page: Page, choice = 0) {
   }
 }
 
+async function expectSingleRowReadingLines(page: Page) {
+  await expect.poll(() => page.locator('.reading-line').evaluateAll((lines) => lines
+    .filter((line) => {
+      const height = line.getBoundingClientRect().height;
+      const lineHeight = Number.parseFloat(getComputedStyle(line).lineHeight);
+      return height > lineHeight + 1;
+    })
+    .map((line) => line.getAttribute('data-line-index')))).toEqual([]);
+}
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('wikispreed:tier:v1', 'brisk'));
   await page.route('**/api/quiz', async (route) => {
@@ -216,6 +226,9 @@ test('the reading window stays covered and within a comfortable measure', async 
   await expect(active).toBeVisible();
   await expect(page.locator('.reading-line.window-visible')).toHaveCount(3);
   await expect(page.getByRole('progressbar', { name: 'Article progress' })).toBeVisible();
+  await expectSingleRowReadingLines(page);
+  await expect(page.locator('.reader-measure')).toBeHidden();
+  await expect(page.locator('.reader-measure')).toHaveCSS('position', 'absolute');
 
   expect(await page.evaluate(() => {
     const lines = [...document.querySelectorAll<HTMLElement>('.reading-line')];
@@ -243,8 +256,32 @@ test('the reading window stays covered and within a comfortable measure', async 
   await page.screenshot({ path: testInfo.outputPath('reader-progress.png'), fullPage: true });
 });
 
+test('browser-measured lines remain single-row after a narrow resize', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'Exercises the mobile widths where Safari text wrapping diverged.');
+  await page.goto('/?demo=reader');
+  await expect(page.locator('.reading-line.active')).toBeVisible();
+
+  for (const width of [320, 390, 760]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect.poll(() => page.evaluate(() => {
+      const stage = document.querySelector<HTMLElement>('.reader-stage')!;
+      const copy = document.querySelector<HTMLElement>('.reader-copy:not(.reader-measure)')!;
+      const measure = document.querySelector<HTMLElement>('.reader-measure')!;
+      const styles = getComputedStyle(stage);
+      const available = stage.clientWidth
+        - Number.parseFloat(styles.paddingLeft)
+        - Number.parseFloat(styles.paddingRight);
+      const copyWidth = copy.getBoundingClientRect().width;
+      const measureWidth = measure.getBoundingClientRect().width;
+      return Math.max(copyWidth - available, Math.abs(copyWidth - measureWidth - 1));
+    })).toBeLessThanOrEqual(0.5);
+    await expectSingleRowReadingLines(page);
+  }
+});
+
 test('manual reader scrolling remains under the player’s control', async ({ page }) => {
   await page.goto('/?demo=reader');
+  await expect(page.locator('.reading-line.active')).toBeVisible();
   await page.keyboard.press('Space');
   await page.evaluate(() => window.scrollBy({ top: 160, behavior: 'auto' }));
   const manuallyScrolledTo = await page.evaluate(() => window.scrollY);
@@ -254,7 +291,9 @@ test('manual reader scrolling remains under the player’s control', async ({ pa
 });
 
 test('a screenful hands off behind a shutter and preserves the last line as an eye anchor', async ({ page }, testInfo) => {
+  if (testInfo.project.name === 'desktop') await page.setViewportSize({ width: 1440, height: 700 });
   await page.goto('/?demo=reader');
+  await expect(page.locator('.reading-line.active')).toBeVisible();
   await page.keyboard.press('Space');
   const shell = page.locator('.reader-shell');
   let observedHandoff = false;
